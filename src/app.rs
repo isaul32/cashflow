@@ -29,7 +29,7 @@ enum Page {
     Settings,
 }
 
-pub struct BudgetApp {
+pub struct CashFlowApp {
     storage: Option<Storage>,
     settings: Settings,
     /// App logo shown in the sidebar (same artwork as the window icon).
@@ -68,13 +68,13 @@ pub struct BudgetApp {
     _subs: Vec<Subscription>,
 }
 
-fn input(window: &mut Window, cx: &mut Context<BudgetApp>, placeholder: &'static str) -> Entity<InputState> {
+fn input(window: &mut Window, cx: &mut Context<CashFlowApp>, placeholder: &'static str) -> Entity<InputState> {
     cx.new(|cx| InputState::new(window, cx).placeholder(placeholder))
 }
 
 fn input_with(
     window: &mut Window,
-    cx: &mut Context<BudgetApp>,
+    cx: &mut Context<CashFlowApp>,
     placeholder: &'static str,
     value: &str,
 ) -> Entity<InputState> {
@@ -106,7 +106,7 @@ fn money(cents: i64) -> String {
     format!("{sign}€{}.{:02}", group(c / 100), c % 100)
 }
 
-impl BudgetApp {
+impl CashFlowApp {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let name_in = input(window, cx, "Optional note");
         let amount_in = input(window, cx, "0.00");
@@ -151,7 +151,7 @@ impl BudgetApp {
         let deficit_in = input_with(window, cx, "Deficit", &settings.labels.deficit);
         let next_entry_id = MonthData { entries: entries.clone() }.next_entry_id();
         let category = cats.flatten(Kind::Expense).first().map(|(_, c)| c.id);
-        let mut app = BudgetApp {
+        let mut app = CashFlowApp {
             data: SankeyData::default(),
             storage,
             settings,
@@ -278,7 +278,7 @@ impl BudgetApp {
         let dir: PathBuf = directories::UserDirs::new()
             .and_then(|d| d.document_dir().map(|p| p.to_path_buf()))
             .unwrap_or_default();
-        let name = format!("budget-{}-sankeymatic.txt", self.month);
+        let name = format!("cashflow-{}-sankeymatic.txt", self.month);
         let rx = cx.prompt_for_new_path(&dir, Some(&name));
         cx.spawn(async move |this, cx| {
             let Ok(Ok(Some(path))) = rx.await else { return };

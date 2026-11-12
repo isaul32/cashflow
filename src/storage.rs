@@ -51,6 +51,7 @@ impl Storage {
         if let Some(dir) = std::env::current_exe().ok().and_then(|exe| portable_dir(&exe)) {
             return Some(Self::new(dir));
         }
+        // The folder is still called "budget" so data from earlier versions is kept.
         directories::ProjectDirs::from("", "", "budget").map(|d| Self::new(d.data_dir()))
     }
 
@@ -165,7 +166,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("budget-test-{}-portable", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        let exe = dir.join("budget.exe");
+        let exe = dir.join("cashflow.exe");
         assert_eq!(portable_dir(&exe), None);
         fs::write(dir.join("portable"), "").unwrap();
         assert_eq!(portable_dir(&exe), Some(dir.join("data")));

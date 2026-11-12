@@ -48,9 +48,9 @@ jobs:
       - name: Package portable zip
         shell: pwsh
         run: |
-          $name = "budget-${{ steps.ver.outputs.version }}-windows-x64-portable"
+          $name = "cashflow-${{ steps.ver.outputs.version }}-windows-x64-portable"
           New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
-          Copy-Item target/release/budget.exe "dist/$name/"
+          Copy-Item target/release/cashflow.exe "dist/$name/"
           Copy-Item README.md "dist/$name/"
           # The marker file switches the app to portable mode (data next to the exe).
           New-Item -ItemType File -Path "dist/$name/portable" | Out-Null
@@ -62,7 +62,7 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DSourceExe=..\target\release\budget.exe" installer\budget.iss
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DSourceExe=..\target\release\cashflow.exe" installer\cashflow.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Checksums
@@ -77,7 +77,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: budget-${{ steps.ver.outputs.version }}-windows-x64
+          name: cashflow-${{ steps.ver.outputs.version }}-windows-x64
           path: dist/*
           if-no-files-found: error
 
@@ -88,5 +88,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ github.ref_name }}" (Get-ChildItem dist -File).FullName `
-            --title "Budget ${{ github.ref_name }}" `
+            --title "CashFlow ${{ github.ref_name }}" `
             --generate-notes

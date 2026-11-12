@@ -108,7 +108,7 @@ fn pill(
         .child(label)
 }
 
-impl BudgetApp {
+impl CashFlowApp {
     // ---- shell ----
 
     fn sidebar(&self, p: Pal, dark: bool, cx: &mut Context<Self>) -> impl IntoElement {
@@ -147,7 +147,7 @@ impl BudgetApp {
             .child(img(self.logo.clone()).size_9().flex_shrink_0())
             .child(
                 v_flex()
-                    .child(heading("Budget"))
+                    .child(heading("CashFlow"))
                     .child(div().text_xs().text_color(p.muted_fg).child("Monthly money flow")),
             );
 
@@ -845,7 +845,7 @@ fn stat_card(label: &'static str, value: String, accent: Hsla, note: String, p: 
         .child(div().text_xs().text_color(p.muted_fg).child(note))
 }
 
-impl Render for BudgetApp {
+impl Render for CashFlowApp {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = pal(cx);
         let dark = cx.theme().is_dark();

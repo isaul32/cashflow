@@ -1,5 +1,5 @@
 [package]
-name = "budget"
+name = "cashflow"
 version = "0.1.0"
 edition = "2024"
 description = "Monthly income and expense tracker with a Sankey flow chart"

@@ -669,18 +669,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "budget"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "directories",
- "gpui-kit",
- "serde",
- "serde_json",
- "winresource",
-]
-
-[[package]]
 name = "built"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -752,6 +740,18 @@ dependencies = [
  "rustix",
  "wayland-backend",
  "wayland-client",
+]
+
+[[package]]
+name = "cashflow"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "directories",
+ "gpui-kit",
+ "serde",
+ "serde_json",
+ "winresource",
 ]
 
 [[package]]

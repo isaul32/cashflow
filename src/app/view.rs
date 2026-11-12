@@ -148,7 +148,7 @@ impl CashFlowApp {
             .child(
                 v_flex()
                     .child(heading("CashFlow"))
-                    .child(div().text_xs().text_color(p.muted_fg).child("Monthly money flow")),
+                    .child(div().text_xs().text_color(p.muted_fg).child("Monthly cash flow")),
             );
 
         v_flex()

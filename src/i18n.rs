@@ -419,11 +419,6 @@ messages! {
     ThemeDark {
         en: "Dark mode", fi: "Tumma tila", sv: "Mörkt läge", de: "Dunkler Modus", fr: "Mode sombre", es: "Modo oscuro",
     }
-    AutosaveNote {
-        en: "Changes are saved automatically", fi: "Muutokset tallentuvat automaattisesti",
-        sv: "Ändringar sparas automatiskt", de: "Änderungen werden automatisch gespeichert",
-        fr: "Les modifications sont enregistrées automatiquement", es: "Los cambios se guardan automáticamente",
-    }
     SubOverview {
         en: "Where your money comes from and where it goes", fi: "Mistä rahasi tulevat ja minne ne menevät",
         sv: "Var dina pengar kommer ifrån och vart de går", de: "Woher dein Geld kommt und wohin es geht",

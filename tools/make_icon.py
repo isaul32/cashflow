@@ -1,4 +1,4 @@
-"""Generates assets/icon.ico: a tiny Sankey diagram on a dark rounded square.
+"""Generates assets/icon.ico: a tiny Sankey diagram on a light rounded square.
 
 Usage: python tools/make_icon.py   (requires Pillow)
 """
@@ -39,7 +39,7 @@ def main() -> None:
     px = ImageDraw.Draw(bg)
     for y in range(S):
         t = y / (S - 1)
-        c = (int(31 + (11 - 31) * t), int(41 + (18 - 41) * t), int(55 + (32 - 55) * t), 255)
+        c = (int(255 + (233 - 255) * t), int(255 + (231 - 255) * t), int(254 + (228 - 254) * t), 255)
         px.line([(0, y), (S, y)], fill=c)
     mask = Image.new("L", (S, S), 0)
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, S - 1, S - 1], radius=230, fill=255)

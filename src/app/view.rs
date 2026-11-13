@@ -185,14 +185,6 @@ impl CashFlowApp {
                         Theme::change(mode, Some(window), cx);
                     })),
             )
-            .child(
-                div()
-                    .px_2()
-                    .pt_2()
-                    .text_xs()
-                    .text_color(p.muted_fg)
-                    .child(self.t(Msg::AutosaveNote)),
-            )
     }
 
     fn header(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {

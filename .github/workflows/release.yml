@@ -85,8 +85,8 @@ jobs:
 
   macos:
     needs: meta
-    # macos-14 and later runners are Apple Silicon.
-    runs-on: macos-14
+    # macos-15 is an Apple Silicon (arm64) runner; the Intel one is macos-15-intel.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 

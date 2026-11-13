@@ -1,0 +1,9 @@
+{
+  // Cloudflare Workers Builds: serves the static Astro output (npm run build -> dist/).
+  // The name must match the Worker/project name in the Cloudflare dashboard.
+  "name": "cashflow",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}

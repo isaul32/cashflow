@@ -3,7 +3,7 @@
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::chart::SankeyChart;
 use gpui_kit::component::input::{Input, InputEvent, InputState};
-use gpui_kit::component::plot::shape::SankeyLink;
+use gpui_kit::component::plot::shape::{SankeyAlign, SankeyLink};
 use gpui_kit::component::{ActiveTheme as _, Sizable as _, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;

@@ -610,6 +610,11 @@ impl CashFlowApp {
                 .min_h_0()
                 .child(
                     SankeyChart::new(nodes, links)
+                        // Left alignment keeps all direct children of the middle node in one
+                        // column, so flows never run underneath other nodes.
+                        .node_align(SankeyAlign::Left)
+                        // Room for the two-line label of small neighbouring nodes.
+                        .node_padding(34.0)
                         .node_label(|n| n.label.clone().into())
                         .node_color(|n| gpui_kit::rgb(n.color))
                         .value_label(|_, v| format!("€{}", group(v.round() as i64)).into()),

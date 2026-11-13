@@ -46,7 +46,7 @@ impl SankeyData {
         self.income_cents - self.expense_cents
     }
 
-    /// Text for pasting into the SankeyMATIC "Inputs" box (sankeymatic.com):
+    /// Text for pasting into the SankeyMATIC "Inputs" box:
     /// one `Source [amount] Target` line per flow, then `:Node #color` lines.
     /// Node names are made unique and stripped of characters SankeyMATIC treats
     /// as syntax.

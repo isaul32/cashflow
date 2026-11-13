@@ -667,7 +667,7 @@ impl CashFlowApp {
                                             .outline()
                                             .small()
                                             .label(if self.copied { "Copied ✓" } else { "Copy" })
-                                            .tooltip("Copy as SankeyMATIC text (paste at sankeymatic.com)")
+                                            .tooltip("Copy as SankeyMATIC text")
                                             .on_click(cx.listener(|this, _, _, cx| this.copy_sankeymatic(cx))),
                                     )
                                     .child(

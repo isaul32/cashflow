@@ -419,6 +419,14 @@ messages! {
     ThemeDark {
         en: "Dark mode", fi: "Tumma tila", sv: "Mörkt läge", de: "Dunkler Modus", fr: "Mode sombre", es: "Modo oscuro",
     }
+    ThemeTitle {
+        en: "Appearance", fi: "Ulkoasu", sv: "Utseende", de: "Darstellung", fr: "Apparence", es: "Apariencia",
+    }
+    ThemeHelp {
+        en: "Follow the system setting or pick a theme.", fi: "Seuraa järjestelmän asetusta tai valitse teema.",
+        sv: "Följ systeminställningen eller välj ett tema.", de: "Der Systemeinstellung folgen oder ein Design wählen.",
+        fr: "Suivre le réglage du système ou choisir un thème.", es: "Seguir el ajuste del sistema o elegir un tema.",
+    }
     SubOverview {
         en: "Where your money comes from and where it goes", fi: "Mistä rahasi tulevat ja minne ne menevät",
         sv: "Var dina pengar kommer ifrån och vart de går", de: "Woher dein Geld kommt und wohin es geht",

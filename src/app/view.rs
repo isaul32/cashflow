@@ -1,7 +1,6 @@
 //! Views: sidebar navigation, page header, cards and lists.
 
 use super::*;
-use gpui_kit::component::{Theme, ThemeMode};
 
 /// Theme colors copied out of the context so view code can freely borrow `cx`.
 #[derive(Clone, Copy)]
@@ -112,7 +111,7 @@ fn pill(
 impl CashFlowApp {
     // ---- shell ----
 
-    fn sidebar(&self, p: Pal, dark: bool, cx: &mut Context<Self>) -> impl IntoElement {
+    fn sidebar(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let nav = |page: Page, icon: IconName, label: &'static str, cx: &mut Context<Self>| {
             let active = self.page == page;
             div()
@@ -174,17 +173,6 @@ impl CashFlowApp {
             .child(nav(Page::Settings, IconName::Settings, self.t(Msg::NavSettings), cx))
             .child(nav(Page::About, IconName::Info, self.t(Msg::NavAbout), cx))
             .child(div().flex_1())
-            .child(
-                Button::new("theme-toggle")
-                    .ghost()
-                    .small()
-                    .icon(if dark { IconName::Sun } else { IconName::Moon })
-                    .label(if dark { self.t(Msg::ThemeLight) } else { self.t(Msg::ThemeDark) })
-                    .on_click(cx.listener(move |_, _, window, cx| {
-                        let mode = if dark { ThemeMode::Light } else { ThemeMode::Dark };
-                        Theme::change(mode, Some(window), cx);
-                    })),
-            )
     }
 
     fn header(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
@@ -660,6 +648,8 @@ impl CashFlowApp {
                         // Left alignment keeps all direct children of the middle node in one
                         // column, so flows never run underneath other nodes.
                         .node_align(SankeyAlign::Left)
+                        // No relaxation: nodes keep our order, so Savings is always last.
+                        .iterations(sankey::SANKEY_ITERATIONS)
                         // Room for the two-line label of small neighbouring nodes.
                         .node_padding(34.0)
                         .node_label(|n| n.label.clone().into())
@@ -1014,6 +1004,23 @@ impl CashFlowApp {
                 .on_click(cx.listener(move |this, _, window, cx| this.set_currency(currency, window, cx)))
             })
             .collect();
+        let themes: Vec<_> = [
+            (None, self.t(Msg::Automatic)),
+            (Some(ThemeChoice::Light), self.t(Msg::ThemeLight)),
+            (Some(ThemeChoice::Dark), self.t(Msg::ThemeDark)),
+        ]
+        .into_iter()
+        .map(|(theme, label)| {
+            pill(
+                SharedString::from(format!("theme-{theme:?}")),
+                label.to_string(),
+                None,
+                self.settings.theme == theme,
+                p,
+            )
+            .on_click(cx.listener(move |this, _, window, cx| this.set_theme(theme, window, cx)))
+        })
+        .collect();
         let hint = |text: &'static str| div().text_sm().text_color(p.muted_fg).child(text);
 
         h_flex().flex_1().min_h_0().items_start().p_6().child(
@@ -1029,6 +1036,13 @@ impl CashFlowApp {
                         .child(heading(self.t(Msg::CurrencyTitle)))
                         .child(hint(self.t(Msg::CurrencyHelp)))
                         .child(h_flex().flex_wrap().gap_2().children(currencies)),
+                )
+                .child(
+                    card(p)
+                        .gap_3()
+                        .child(heading(self.t(Msg::ThemeTitle)))
+                        .child(hint(self.t(Msg::ThemeHelp)))
+                        .child(h_flex().flex_wrap().gap_2().children(themes)),
                 )
                 .child(
                     card(p)
@@ -1092,9 +1106,8 @@ impl CashFlowApp {
             })
             .collect();
 
-        let swatches: Vec<_> = PALETTE
-            .iter()
-            .map(|&color| {
+        let swatch_row = |colors: &[u32], cx: &mut Context<Self>| {
+            h_flex().flex_wrap().gap_2().children(colors.iter().map(|&color| {
                 let selected = self.cat_color == color;
                 div()
                     .id(id_of("swatch", color as u64))
@@ -1108,15 +1121,20 @@ impl CashFlowApp {
                         this.cat_color = color;
                         cx.notify();
                     }))
-            })
-            .collect();
+            }))
+        };
+        let swatches = v_flex()
+            .gap_2()
+            .child(swatch_row(&PALETTE, cx))
+            .child(swatch_row(&PALETTE_DARK, cx))
+            .child(swatch_row(&PALETTE_MUTED, cx));
 
         card(p)
             .gap_3()
             .child(heading(if editing { self.t(Msg::EditCategory) } else { self.t(Msg::NewCategory) }))
             .child(self.segmented(self.cat_kind, true, p, cx))
             .child(field(self.t(Msg::Name), p).child(Input::new(&self.cat_name_in)))
-            .child(field(self.t(Msg::Color), p).child(h_flex().flex_wrap().gap_2().children(swatches)))
+            .child(field(self.t(Msg::Color), p).child(swatches))
             .child(field(self.t(Msg::Parent), p).child(h_flex().flex_wrap().gap_2().children(parents)))
             .child(
                 h_flex()
@@ -1202,7 +1220,6 @@ fn stat_card(label: &'static str, value: String, accent: Hsla, note: String, p: 
 impl Render for CashFlowApp {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = pal(cx);
-        let dark = cx.theme().is_dark();
         let page = match self.page {
             Page::Overview => self.overview(p, cx).into_any_element(),
             Page::Year => self.year_page(p, cx).into_any_element(),
@@ -1223,7 +1240,7 @@ impl Render for CashFlowApp {
             .size_full()
             .bg(p.bg)
             .text_color(p.fg)
-            .child(self.sidebar(p, dark, cx))
+            .child(self.sidebar(p, cx))
             .child(main)
     }
 }

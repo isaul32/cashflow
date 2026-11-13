@@ -11,6 +11,11 @@ use std::collections::{HashMap, HashSet};
 use crate::model::{Categories, Category, CategoryId, Entry, Kind};
 use crate::settings::Labels;
 
+/// Layout relaxation passes of the chart. Zero keeps the node order we build
+/// (income, expenses in category order, savings last) instead of letting the
+/// layout reshuffle nodes.
+pub const SANKEY_ITERATIONS: usize = 0;
+
 pub const SAVINGS_COLOR: u32 = 0x009688;
 pub const DEFICIT_COLOR: u32 = 0xE53935;
 pub const TOTAL_COLOR: u32 = 0x607D8B;
@@ -409,5 +414,40 @@ mod tests {
         assert_eq!(e[0].category_id, housing);
         assert_eq!(c.get(groceries).unwrap().parent, None);
         assert!(c.get(food).is_none());
+    }
+
+    /// The chart layout must keep the node order, so Savings stays at the bottom
+    /// (the default relaxation reorders nodes and can lift it above a category).
+    #[test]
+    fn savings_is_the_lowest_node_of_its_column() {
+        use crate::storage::Storage;
+        use gpui_kit::component::plot::shape::{Sankey, SankeyAlign, SankeyLink};
+
+        let st = Storage::new(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/demo-data"));
+        let cats = st.load_categories().value;
+        let mut all = Vec::new();
+        let mut sets: Vec<(String, Vec<Entry>)> = Vec::new();
+        for key in st.list_months() {
+            let e = st.load_month(key).value.entries;
+            all.extend(e.clone());
+            sets.push((key.to_string(), e));
+        }
+        sets.push(("year".into(), all));
+        for (name, entries) in sets {
+            let d = build(&cats, &entries);
+            let Some(sav) = d.nodes.iter().position(|n| n.label == "Savings") else { continue };
+            let links: Vec<SankeyLink> =
+                d.links.iter().map(|l| SankeyLink::new(l.source, l.target, l.value)).collect();
+            let g = Sankey::new()
+                .iterations(SANKEY_ITERATIONS)
+                .node_align(SankeyAlign::Left)
+                .node_padding(34.0)
+                .extent(0.0, 0.0, 1000.0, 600.0)
+                .layout(d.nodes.len(), &links)
+                .unwrap();
+            let layer = g.nodes[sav].layer;
+            let lowest = g.nodes.iter().filter(|n| n.layer == layer).all(|n| n.y0 <= g.nodes[sav].y0);
+            assert!(lowest, "{name}: savings is not the lowest node");
+        }
     }
 }

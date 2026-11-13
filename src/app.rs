@@ -16,13 +16,23 @@ use crate::i18n::{Currency, Lang, Locale, Msg, Plural, SystemLocale};
 use crate::import::{self, ImportPlan};
 use crate::model::{Categories, CategoryId, Entry, Kind, MonthKey, parse_amount_cents};
 use crate::sankey::{self, FlowNode, SankeyData};
-use crate::settings::{Labels, Settings};
+use crate::settings::{Labels, Settings, ThemeChoice};
 use crate::storage::{MonthData, Storage};
 use crate::year::{self, YearSummary};
 
+/// Category colours: vivid ones (used for new categories by default), plus a
+/// darker and a muted (softer) set of the same hues. The picker shows all three.
 const PALETTE: [u32; 10] = [
     0x3F51B5, 0xFF9800, 0x03A9F4, 0x9C27B0, 0xE91E63, 0x4CAF50, 0x795548, 0x00BCD4, 0xCDDC39,
     0xFF5722,
+];
+const PALETTE_DARK: [u32; 10] = [
+    0x1A237E, 0xE65100, 0x01579B, 0x4A148C, 0x880E4F, 0x1B5E20, 0x3E2723, 0x006064, 0x827717,
+    0xBF360C,
+];
+const PALETTE_MUTED: [u32; 10] = [
+    0x8E99C4, 0xD9A566, 0x7FB0CF, 0xA986B5, 0xC98BA0, 0x86AD88, 0x9C8578, 0x7FB5BB, 0xBBBD86,
+    0xCF9482,
 ];
 
 #[derive(Clone, Copy, PartialEq)]
@@ -98,6 +108,13 @@ fn input_with(
     let placeholder: SharedString = placeholder.into();
     let value = value.to_string();
     cx.new(|cx| InputState::new(window, cx).placeholder(placeholder).default_value(value))
+}
+
+fn theme_mode(choice: ThemeChoice) -> ThemeMode {
+    match choice {
+        ThemeChoice::Light => ThemeMode::Light,
+        ThemeChoice::Dark => ThemeMode::Dark,
+    }
 }
 
 fn id_of(prefix: &str, id: u64) -> SharedString {
@@ -200,6 +217,9 @@ impl CashFlowApp {
             _subs: subs,
         };
         app.refresh();
+        if let Some(choice) = app.settings.theme {
+            Theme::change(theme_mode(choice), Some(window), cx);
+        }
         if let Ok(theme) = std::env::var("CASHFLOW_THEME") {
             let mode = if theme == "dark" { ThemeMode::Dark } else { ThemeMode::Light };
             Theme::change(mode, Some(window), cx);
@@ -250,6 +270,17 @@ impl CashFlowApp {
         self.settings.language = language;
         self.persist_settings();
         self.apply_locale(window, cx);
+    }
+
+    /// Applies and stores the theme; `None` follows the system appearance.
+    fn set_theme(&mut self, theme: Option<ThemeChoice>, window: &mut Window, cx: &mut Context<Self>) {
+        self.settings.theme = theme;
+        self.persist_settings();
+        match theme {
+            Some(choice) => Theme::change(theme_mode(choice), Some(window), cx),
+            None => Theme::sync_system_appearance(Some(window), cx),
+        }
+        cx.notify();
     }
 
     fn set_currency(&mut self, currency: Option<Currency>, window: &mut Window, cx: &mut Context<Self>) {

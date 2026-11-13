@@ -63,6 +63,14 @@ impl Labels {
     }
 }
 
+/// An explicit colour theme; no choice means "follow the system".
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeChoice {
+    Light,
+    Dark,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -71,6 +79,8 @@ pub struct Settings {
     pub language: Option<Lang>,
     /// `None` follows the system region.
     pub currency: Option<Currency>,
+    /// `None` follows the system appearance.
+    pub theme: Option<ThemeChoice>,
 }
 
 #[cfg(test)]
@@ -111,7 +121,9 @@ mod tests {
         assert_eq!(serde_json::from_str::<Settings>(&json).unwrap(), s);
         // Old files without the new fields mean "automatic".
         let old: Settings = serde_json::from_str(r#"{"labels":{"total":"X"}}"#).unwrap();
-        assert_eq!((old.language, old.currency), (None, None));
+        assert_eq!((old.language, old.currency, old.theme), (None, None, None));
+        let dark: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
+        assert_eq!(dark.theme, Some(ThemeChoice::Dark));
     }
 
     #[test]

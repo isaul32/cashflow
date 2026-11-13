@@ -79,6 +79,11 @@ impl Storage {
         self.dir.join(format!("{key}.json"))
     }
 
+    /// False on a first run, before categories were ever saved.
+    pub fn has_categories(&self) -> bool {
+        self.categories_path().is_file()
+    }
+
     pub fn load_categories(&self) -> Loaded<Categories> {
         self.load(&self.categories_path())
     }
@@ -123,7 +128,8 @@ impl Storage {
                 };
             }
         };
-        match serde_json::from_str(&text) {
+        // Editors such as Notepad may save JSON with a UTF-8 byte order mark.
+        match serde_json::from_str(text.trim_start_matches('\u{feff}')) {
             Ok(value) => Loaded { value, warning: None },
             Err(e) => {
                 let aside = path.with_extension("json.corrupt");
@@ -215,6 +221,18 @@ mod tests {
         s.save_settings(&settings).unwrap();
         assert_eq!(s.load_settings().value, settings);
         assert!(s.list_months().is_empty());
+        let _ = fs::remove_dir_all(s.dir());
+    }
+
+    #[test]
+    fn files_saved_with_a_byte_order_mark_still_load() {
+        let s = temp_storage("bom");
+        fs::create_dir_all(s.dir()).unwrap();
+        fs::write(s.dir().join("settings.json"), "\u{feff}{\"language\":\"fi\"}").unwrap();
+        let loaded = s.load_settings();
+        assert!(loaded.warning.is_none(), "{:?}", loaded.warning);
+        assert_eq!(loaded.value.language, Some(crate::i18n::Lang::Fi));
+        assert!(s.dir().join("settings.json").exists(), "the file must not be set aside");
         let _ = fs::remove_dir_all(s.dir());
     }
 

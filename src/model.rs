@@ -59,6 +59,24 @@ impl Default for Categories {
 }
 
 impl Categories {
+    /// The starter categories with names in `lang` (used on a first run).
+    pub fn defaults_for(lang: crate::i18n::Lang) -> Categories {
+        use crate::i18n::Msg;
+        let mut c = Categories { items: Vec::new(), next_id: 1 };
+        for (msg, color) in [(Msg::DefSalary, 0x4CAF50), (Msg::DefOtherIncome, 0x8BC34A)] {
+            c.add(msg.text(lang), Kind::Income, None, color);
+        }
+        for (msg, color) in [
+            (Msg::DefHousing, 0x3F51B5),
+            (Msg::DefFood, 0xFF9800),
+            (Msg::DefTransport, 0x03A9F4),
+            (Msg::DefLeisure, 0x9C27B0),
+        ] {
+            c.add(msg.text(lang), Kind::Expense, None, color);
+        }
+        c
+    }
+
     pub fn add(
         &mut self,
         name: impl Into<String>,
@@ -203,23 +221,6 @@ impl MonthKey {
         }
     }
 
-    /// Three-letter English month name, e.g. "Mar".
-    pub fn short_name(self) -> &'static str {
-        const NAMES: [&str; 12] = [
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-        ];
-        NAMES[(self.month - 1) as usize]
-    }
-
-    /// English month name and year, e.g. "March 2026".
-    pub fn title(self) -> String {
-        const NAMES: [&str; 12] = [
-            "January", "February", "March", "April", "May", "June", "July", "August",
-            "September", "October", "November", "December",
-        ];
-        format!("{} {}", NAMES[(self.month - 1) as usize], self.year)
-    }
-
     pub fn current() -> Self {
         use chrono::Datelike;
         let today = chrono::Local::now().date_naive();
@@ -251,7 +252,9 @@ impl std::str::FromStr for MonthKey {
 /// Parses a user-typed amount ("12", "12.5", "12,50") into cents.
 /// Returns `None` for empty, non-numeric, non-positive or absurdly large input.
 pub fn parse_amount_cents(input: &str) -> Option<i64> {
-    let v: f64 = input.trim().replace(',', ".").parse().ok()?;
+    // Spaces (also the no-break ones used as thousands separators) are ignored.
+    let cleaned: String = input.chars().filter(|c| !c.is_whitespace()).collect();
+    let v: f64 = cleaned.replace(',', ".").parse().ok()?;
     if !v.is_finite() || v <= 0.0 || v > 1.0e9 {
         return None;
     }
@@ -300,13 +303,14 @@ mod tests {
         assert_eq!(jan.prev(), dec);
         assert_eq!(dec.next(), jan);
         assert_eq!(jan.next(), MonthKey::new(2026, 2).unwrap());
-        assert_eq!(jan.title(), "January 2026");
     }
 
     #[test]
     fn parses_amounts() {
         assert_eq!(parse_amount_cents("12"), Some(1200));
         assert_eq!(parse_amount_cents(" 12,50 "), Some(1250));
+        assert_eq!(parse_amount_cents("1 234,50"), Some(123_450));
+        assert_eq!(parse_amount_cents("1\u{a0}234,50"), Some(123_450));
         assert_eq!(parse_amount_cents("0.07"), Some(7));
         assert_eq!(parse_amount_cents("19.99"), Some(1999));
         assert_eq!(parse_amount_cents(""), None);

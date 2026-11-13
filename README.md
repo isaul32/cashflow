@@ -16,6 +16,9 @@ Built with Rust and [GPUI Kit](https://gpui-kit.com).
 - Yearly view: all months of a year in one Sankey chart, a per-month breakdown, and previous years one click away
 - Automatic saving, plain JSON files
 - Light and dark theme
+- Six languages: English, Finnish, Swedish, German, French and Spanish. The language follows your
+  system by default and can be changed in Settings. Numbers, currency (EUR, USD, GBP, SEK, NOK, DKK,
+  CHF) and month names are formatted the way each language expects, e.g. `€1,234.50` or `1 234,50 €`
 
 ## Download
 
@@ -36,8 +39,8 @@ Verify downloads with `SHA256SUMS.txt`.
 | Portable | `data\` next to `cashflow.exe` (enabled by the `portable` marker file in the zip) |
 | Any | The directory in the `BUDGET_DATA_DIR` environment variable, if set |
 
-`categories.json` holds the categories and each month is stored as
-`YYYY-MM.json`. Uninstalling does not delete your data.
+`categories.json` holds the categories, `settings.json` your language, currency and chart labels,
+and each month is stored as `YYYY-MM.json`. Uninstalling does not delete your data.
 
 ## Try it with demo data
 
@@ -66,6 +69,16 @@ cargo run            # debug build
 cargo build --release
 cargo test
 ```
+
+## Translations
+
+All texts live in one table in `src/i18n.rs`; every message needs a text for every language, so a
+missing translation does not compile. To add a language, add a `Lang` variant, its number format and
+month names, and one column in the table. The translations other than English and Finnish have not
+been reviewed by native speakers, so corrections are welcome.
+
+Known limitation: the right-click menu of text fields (Cut, Copy, Paste, Select All) comes from the
+UI library, which does not ship these languages, so it stays in English.
 
 ## Releasing
 

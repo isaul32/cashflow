@@ -57,7 +57,8 @@ fn heading(text: impl Into<SharedString>) -> Div {
     div().font_weight(FontWeight::SEMIBOLD).child(text.into())
 }
 
-fn field(label: &'static str, p: Pal) -> Div {
+fn field(label: impl Into<SharedString>, p: Pal) -> Div {
+    let label: SharedString = label.into();
     v_flex().gap_1().child(
         div()
             .text_xs()
@@ -67,7 +68,7 @@ fn field(label: &'static str, p: Pal) -> Div {
     )
 }
 
-fn section_label(text: &'static str, trailing: String, p: Pal) -> Div {
+fn section_label(text: impl Into<SharedString>, trailing: String, p: Pal) -> Div {
     h_flex()
         .justify_between()
         .mt_2()
@@ -75,7 +76,7 @@ fn section_label(text: &'static str, trailing: String, p: Pal) -> Div {
         .text_xs()
         .font_weight(FontWeight::MEDIUM)
         .text_color(p.muted_fg)
-        .child(text)
+        .child(text.into())
         .child(trailing)
 }
 
@@ -151,8 +152,10 @@ impl CashFlowApp {
             .child(img(self.logo.clone()).size_9().flex_shrink_0())
             .child(
                 v_flex()
+                    .flex_1()
+                    .min_w_0()
                     .child(heading("CashFlow"))
-                    .child(div().text_xs().text_color(p.muted_fg).child("Monthly cash flow")),
+                    .child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::Tagline))),
             );
 
         v_flex()
@@ -165,18 +168,18 @@ impl CashFlowApp {
             .border_r_1()
             .border_color(p.sidebar_border)
             .child(brand)
-            .child(nav(Page::Overview, IconName::LayoutDashboard, "Overview", cx))
-            .child(nav(Page::Year, IconName::CalendarDays, "Year", cx))
-            .child(nav(Page::Categories, IconName::Tags, "Categories", cx))
-            .child(nav(Page::Settings, IconName::Settings, "Settings", cx))
-            .child(nav(Page::About, IconName::Info, "About", cx))
+            .child(nav(Page::Overview, IconName::LayoutDashboard, self.t(Msg::NavOverview), cx))
+            .child(nav(Page::Year, IconName::CalendarDays, self.t(Msg::NavYear), cx))
+            .child(nav(Page::Categories, IconName::Tags, self.t(Msg::NavCategories), cx))
+            .child(nav(Page::Settings, IconName::Settings, self.t(Msg::NavSettings), cx))
+            .child(nav(Page::About, IconName::Info, self.t(Msg::NavAbout), cx))
             .child(div().flex_1())
             .child(
                 Button::new("theme-toggle")
                     .ghost()
                     .small()
                     .icon(if dark { IconName::Sun } else { IconName::Moon })
-                    .label(if dark { "Light mode" } else { "Dark mode" })
+                    .label(if dark { self.t(Msg::ThemeLight) } else { self.t(Msg::ThemeDark) })
                     .on_click(cx.listener(move |_, _, window, cx| {
                         let mode = if dark { ThemeMode::Light } else { ThemeMode::Dark };
                         Theme::change(mode, Some(window), cx);
@@ -188,17 +191,17 @@ impl CashFlowApp {
                     .pt_2()
                     .text_xs()
                     .text_color(p.muted_fg)
-                    .child("Changes are saved automatically"),
+                    .child(self.t(Msg::AutosaveNote)),
             )
     }
 
     fn header(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let (title, sub) = match self.page {
-            Page::Overview => ("Overview", "Where your money comes from and where it goes"),
-            Page::Year => ("Year", "All months of a year added together"),
-            Page::Categories => ("Categories", "Organize income and spending your way"),
-            Page::Settings => ("Settings", "Customize how the chart is labeled"),
-            Page::About => ("About", "The app, its author and license"),
+            Page::Overview => (self.t(Msg::NavOverview), self.t(Msg::SubOverview)),
+            Page::Year => (self.t(Msg::NavYear), self.t(Msg::SubYear)),
+            Page::Categories => (self.t(Msg::NavCategories), self.t(Msg::SubCategories)),
+            Page::Settings => (self.t(Msg::NavSettings), self.t(Msg::SubSettings)),
+            Page::About => (self.t(Msg::NavAbout), self.t(Msg::SubAbout)),
         };
         let right = match self.page {
             Page::Overview => Some(self.month_nav(p, cx).into_any_element()),
@@ -244,7 +247,7 @@ impl CashFlowApp {
                             .text_center()
                             .text_sm()
                             .font_weight(FontWeight::MEDIUM)
-                            .child(self.month.title()),
+                            .child(self.lc.month_title(self.month)),
                     )
                     .child(Button::new("month-next").ghost().small().icon(IconName::ChevronRight).on_click(
                         cx.listener(|this, _, window, cx| {
@@ -253,7 +256,7 @@ impl CashFlowApp {
                     )),
             )
             .when(self.month != MonthKey::current(), |row| {
-                row.child(Button::new("month-today").outline().small().label("Today").on_click(
+                row.child(Button::new("month-today").outline().small().label(self.t(Msg::Today)).on_click(
                     cx.listener(|this, _, window, cx| {
                         this.switch_month(MonthKey::current(), window, cx)
                     }),
@@ -325,8 +328,8 @@ impl CashFlowApp {
             .rounded_lg()
             .bg(p.muted)
             .when(locked, |d| d.opacity(0.7))
-            .child(seg(Kind::Income, "Income", cx))
-            .child(seg(Kind::Expense, "Expense", cx))
+            .child(seg(Kind::Income, self.t(Msg::KindIncome), cx))
+            .child(seg(Kind::Expense, self.t(Msg::KindExpense), cx))
     }
 
     // ---- overview ----
@@ -356,8 +359,8 @@ impl CashFlowApp {
                     .child(self.summary(&self.data, p))
                     .child(self.chart_card(
                         &self.data,
-                        format!("No entries for {}", self.month.title()),
-                        "Add income and expenses on the left to see how your money flows.",
+                        self.tf(Msg::NoEntriesFor, &[("period", &self.lc.month_inline(self.month))]),
+                        self.t(Msg::NoEntriesHint),
                         true,
                         p,
                         cx,
@@ -385,13 +388,13 @@ impl CashFlowApp {
 
         card(p)
             .gap_3()
-            .child(heading(if editing { "Edit entry" } else { "Add entry" }))
+            .child(heading(if editing { self.t(Msg::EditEntry) } else { self.t(Msg::AddEntry) }))
             .child(self.segmented(self.kind, false, p, cx))
-            .child(field("Category", p).child(if no_categories {
+            .child(field(self.t(Msg::Category), p).child(if no_categories {
                 div()
                     .text_sm()
                     .text_color(p.muted_fg)
-                    .child("No categories yet. Create one on the Categories page.")
+                    .child(self.t(Msg::NoCategoriesHint))
                     .into_any_element()
             } else {
                 h_flex().flex_wrap().gap_2().children(pills).into_any_element()
@@ -400,8 +403,12 @@ impl CashFlowApp {
                 h_flex()
                     .gap_2()
                     .items_end()
-                    .child(field("Description", p).flex_1().child(Input::new(&self.name_in)))
-                    .child(field("Amount (€)", p).w(px(110.0)).child(Input::new(&self.amount_in))),
+                    .child(field(self.t(Msg::Description), p).flex_1().child(Input::new(&self.name_in)))
+                    .child(
+                        field(self.tf(Msg::AmountLabel, &[("symbol", self.lc.currency_symbol())]), p)
+                            .w(px(110.0))
+                            .child(Input::new(&self.amount_in)),
+                    ),
             )
             .child(
                 h_flex()
@@ -409,11 +416,11 @@ impl CashFlowApp {
                     .child(
                         Button::new("submit")
                             .primary()
-                            .label(if editing { "Save changes" } else { "Add entry" })
+                            .label(if editing { self.t(Msg::SaveChanges) } else { self.t(Msg::AddEntry) })
                             .on_click(cx.listener(|this, _, window, cx| this.submit_entry(window, cx))),
                     )
                     .when(editing, |row| {
-                        row.child(Button::new("cancel").outline().label("Cancel").on_click(
+                        row.child(Button::new("cancel").outline().label(self.t(Msg::Cancel)).on_click(
                             cx.listener(|this, _, window, cx| {
                                 this.clear_inputs(window, cx);
                                 cx.notify();
@@ -438,10 +445,10 @@ impl CashFlowApp {
             count += items.len();
             let total: i64 = items.iter().map(|e| e.amount_cents).sum();
             let (label, sign) = match kind {
-                Kind::Income => ("INCOME", "+"),
-                Kind::Expense => ("EXPENSES", "−"),
+                Kind::Income => (self.t(Msg::Income).to_uppercase(), "+"),
+                Kind::Expense => (self.t(Msg::Expenses).to_uppercase(), self.lc.minus()),
             };
-            body = body.child(section_label(label, format!("{sign}{}", money(total)), p));
+            body = body.child(section_label(label, format!("{sign}{}", self.lc.money(total)), p));
             for e in items {
                 body = body.child(self.entry_row(e, kind, p, cx));
             }
@@ -453,7 +460,7 @@ impl CashFlowApp {
                     .text_sm()
                     .text_center()
                     .text_color(p.muted_fg)
-                    .child("Nothing recorded for this month yet."),
+                    .child(self.t(Msg::NothingRecorded)),
             );
         }
         card(p)
@@ -464,8 +471,8 @@ impl CashFlowApp {
                 h_flex()
                     .justify_between()
                     .items_center()
-                    .child(heading("Entries"))
-                    .child(div().text_xs().text_color(p.muted_fg).child(format!("{count} this month"))),
+                    .child(heading(self.t(Msg::Entries)))
+                    .child(div().text_xs().text_color(p.muted_fg).child(self.tf(Msg::CountThisMonth, &[("count", &count.to_string())]))),
             )
             .child(div().id("entries-scroll").flex_1().min_h_0().overflow_y_scroll().child(body))
     }
@@ -482,7 +489,7 @@ impl CashFlowApp {
         };
         let (sign, amount_color) = match kind {
             Kind::Income => ("+", p.success),
-            Kind::Expense => ("−", p.fg),
+            Kind::Expense => (self.lc.minus(), p.fg),
         };
         h_flex()
             .id(id_of("row", id))
@@ -507,9 +514,9 @@ impl CashFlowApp {
                     .text_sm()
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(amount_color)
-                    .child(format!("{sign}{}", money(e.amount_cents))),
+                    .child(format!("{sign}{}", self.lc.money(e.amount_cents))),
             )
-            .child(Button::new(id_of("edit", id)).ghost().small().label("Edit").on_click(
+            .child(Button::new(id_of("edit", id)).ghost().small().label(self.t(Msg::Edit)).on_click(
                 cx.listener(move |this, _, window, cx| this.edit_entry(id, window, cx)),
             ))
             .child(Button::new(id_of("del", id)).ghost().small().icon(IconName::X).on_click(
@@ -521,7 +528,7 @@ impl CashFlowApp {
     fn import_panel(&self, p: Pal, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         let plan = self.pending_import.as_ref()?;
         let existing = self.entries.len();
-        let month = self.month.title();
+        let month = self.lc.month_inline(self.month);
         let mut warnings: Vec<_> = plan
             .warnings
             .iter()
@@ -533,24 +540,30 @@ impl CashFlowApp {
                 div()
                     .text_xs()
                     .text_color(p.muted_fg)
-                    .child(format!("• …and {} more notes", plan.warnings.len() - 4)),
+                    .child(format!(
+                        "• {}",
+                        self.tf(
+                            Msg::MoreNotes,
+                            &[("notes", &self.lc.count(Plural::CountMoreNotes, plan.warnings.len() - 4))]
+                        )
+                    )),
             );
         }
         Some(
             card(p)
                 .gap_2()
                 .border_color(p.primary)
-                .child(heading("Import from SankeyMATIC"))
-                .child(div().text_sm().child(format!(
-                    "Found {} categories and {} entries: income {}, expenses {}.",
-                    plan.categories.len(),
-                    plan.entries.len(),
-                    money(plan.income_cents),
-                    money(plan.expense_cents),
+                .child(heading(self.t(Msg::ImportTitle)))
+                .child(div().text_sm().child(self.tf(
+                    Msg::ImportFound,
+                    &[
+                        ("cats", &self.lc.count(Plural::CountCategories, plan.categories.len())),
+                        ("entries", &self.lc.count(Plural::CountEntries, plan.entries.len())),
+                        ("income", &self.lc.money(plan.income_cents)),
+                        ("expenses", &self.lc.money(plan.expense_cents)),
+                    ],
                 )))
-                .child(div().text_xs().text_color(p.muted_fg).child(
-                    "Categories with the same name are reused; the others are created.",
-                ))
+                .child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::ImportReuse)))
                 .children(warnings)
                 .child(
                     h_flex()
@@ -560,9 +573,12 @@ impl CashFlowApp {
                             Button::new("import-replace")
                                 .primary()
                                 .label(if existing > 0 {
-                                    format!("Replace {existing} entries in {month}")
+                                    self.tf(
+                                        Msg::ImportReplace,
+                                        &[("entries", &self.lc.count(Plural::CountEntries, existing)), ("period", &month)],
+                                    )
                                 } else {
-                                    format!("Import into {month}")
+                                    self.tf(Msg::ImportInto, &[("period", &month)])
                                 })
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.confirm_import(true, window, cx)
@@ -572,7 +588,7 @@ impl CashFlowApp {
                             row.child(
                                 Button::new("import-add")
                                     .outline()
-                                    .label("Add to existing")
+                                    .label(self.t(Msg::ImportAdd))
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.confirm_import(false, window, cx)
                                     })),
@@ -581,7 +597,7 @@ impl CashFlowApp {
                         .child(
                             Button::new("import-cancel")
                                 .ghost()
-                                .label("Cancel")
+                                .label(self.t(Msg::Cancel))
                                 .on_click(cx.listener(|this, _, _, cx| this.cancel_import(cx))),
                         ),
                 ),
@@ -591,18 +607,30 @@ impl CashFlowApp {
     fn summary(&self, d: &SankeyData, p: Pal) -> impl IntoElement {
         let balance = d.balance_cents();
         let (balance_label, balance_color, balance_note) = if d.income_cents == 0 && d.expense_cents == 0 {
-            ("Balance", p.muted_fg, "No data yet".to_string())
+            (self.t(Msg::Balance), p.muted_fg, self.t(Msg::NoDataYet).to_string())
         } else if balance >= 0 {
             let rate = if d.income_cents > 0 { balance * 100 / d.income_cents } else { 0 };
-            ("Savings", p.success, format!("{rate}% of income saved"))
+            (self.t(Msg::Savings), p.success, self.tf(Msg::SavedRate, &[("pct", &rate.to_string())]))
         } else {
-            ("Deficit", p.danger, "Spending exceeds income".to_string())
+            (self.t(Msg::Deficit), p.danger, self.t(Msg::SpendingExceeds).to_string())
         };
         h_flex()
             .gap_4()
-            .child(stat_card("Income", money(d.income_cents), p.success, "Total earned".to_string(), p))
-            .child(stat_card("Expenses", money(d.expense_cents), p.danger, "Total spent".to_string(), p))
-            .child(stat_card(balance_label, money(balance.abs()), balance_color, balance_note, p))
+            .child(stat_card(
+                self.t(Msg::Income),
+                self.lc.money(d.income_cents),
+                p.success,
+                self.t(Msg::TotalEarned).to_string(),
+                p,
+            ))
+            .child(stat_card(
+                self.t(Msg::Expenses),
+                self.lc.money(d.expense_cents),
+                p.danger,
+                self.t(Msg::TotalSpent).to_string(),
+                p,
+            ))
+            .child(stat_card(balance_label, self.lc.money(balance.abs()), balance_color, balance_note, p))
     }
 
     fn chart_card(
@@ -614,6 +642,7 @@ impl CashFlowApp {
         p: Pal,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        let lc = self.lc;
         let body = if d.is_empty() {
             v_flex()
                 .flex_1()
@@ -643,7 +672,7 @@ impl CashFlowApp {
                         .node_padding(34.0)
                         .node_label(|n| n.label.clone().into())
                         .node_color(|n| gpui_kit::rgb(n.color))
-                        .value_label(|_, v| format!("€{}", group(v.round() as i64)).into()),
+                        .value_label(move |_, v| lc.money_whole(v).into()),
                 )
                 .into_any_element()
         };
@@ -655,47 +684,47 @@ impl CashFlowApp {
                 h_flex()
                     .justify_between()
                     .items_center()
-                    .child(heading("Money flow"))
+                    .child(heading(self.t(Msg::MoneyFlow)))
                     .child(
                         h_flex()
                             .gap_2()
                             .items_center()
                             .when(!d.is_empty(), |row| {
-                                row.child(div().text_xs().text_color(p.muted_fg).child("Export"))
+                                row.child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::Export)))
                                     .child(
                                         Button::new("export-copy")
                                             .outline()
                                             .small()
-                                            .label(if self.copied { "Copied ✓" } else { "Copy" })
-                                            .tooltip("Copy as SankeyMATIC text")
+                                            .label(if self.copied { self.t(Msg::Copied) } else { self.t(Msg::Copy) })
+                                            .tooltip(self.t(Msg::TipCopy))
                                             .on_click(cx.listener(|this, _, _, cx| this.copy_sankeymatic(cx))),
                                     )
                                     .child(
                                         Button::new("export-save")
                                             .outline()
                                             .small()
-                                            .label("Save .txt")
-                                            .tooltip("Save the SankeyMATIC text to a file")
+                                            .label(self.t(Msg::SaveTxt))
+                                            .tooltip(self.t(Msg::TipSave))
                                             .on_click(cx.listener(|this, _, _, cx| this.save_sankeymatic_file(cx))),
                                     )
                                     .when(allow_import, |row| row.child(div().w_px().h_5().mx_1().bg(p.border)))
                             })
                             .when(allow_import, |row| {
-                                row.child(div().text_xs().text_color(p.muted_fg).child("Import"))
+                                row.child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::Import)))
                                     .child(
                                         Button::new("import-paste")
                                             .outline()
                                             .small()
-                                            .label("Paste")
-                                            .tooltip("Import SankeyMATIC text from the clipboard")
+                                            .label(self.t(Msg::Paste))
+                                            .tooltip(self.t(Msg::TipPaste))
                                             .on_click(cx.listener(|this, _, _, cx| this.paste_import(cx))),
                                     )
                                     .child(
                                         Button::new("import-open")
                                             .outline()
                                             .small()
-                                            .label("Open .txt")
-                                            .tooltip("Import SankeyMATIC text from a file")
+                                            .label(self.t(Msg::OpenTxt))
+                                            .tooltip(self.t(Msg::TipOpen))
                                             .on_click(cx.listener(|this, _, _, cx| this.open_import_file(cx))),
                                     )
                             }),
@@ -734,7 +763,7 @@ impl CashFlowApp {
                     )),
             )
             .when(self.year != MonthKey::current().year, |row| {
-                row.child(Button::new("year-today").outline().small().label("This year").on_click(
+                row.child(Button::new("year-today").outline().small().label(self.t(Msg::ThisYear)).on_click(
                     cx.listener(|this, _, _, cx| this.switch_year(MonthKey::current().year, cx)),
                 ))
             })
@@ -762,8 +791,8 @@ impl CashFlowApp {
                     .child(self.summary(&self.year_summary.data, p))
                     .child(self.chart_card(
                         &self.year_summary.data,
-                        format!("No entries for {}", self.year_summary.year),
-                        "Entries you add on the Overview page are summed up here.",
+                        self.tf(Msg::NoEntriesFor, &[("period", &self.year_summary.year.to_string())]),
+                        self.t(Msg::NoEntriesYearHint),
                         false,
                         p,
                         cx,
@@ -798,9 +827,9 @@ impl CashFlowApp {
                 let (text, color) = if empty {
                     ("—".to_string(), p.muted_fg)
                 } else if balance >= 0 {
-                    (format!("+{}", money(balance)), p.success)
+                    (format!("+{}", self.lc.money(balance)), p.success)
                 } else {
-                    (money(balance), p.danger)
+                    (self.lc.money(balance), p.danger)
                 };
                 h_flex()
                     .id(id_of("ymonth", m as u64))
@@ -813,11 +842,11 @@ impl CashFlowApp {
                     .hover(|d| d.bg(p.muted))
                     .child(
                         div()
-                            .w(px(34.0))
+                            .w(px(52.0))
                             .text_sm()
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(if empty { p.muted_fg } else { p.fg })
-                            .child(key.short_name()),
+                            .child(self.lc.month_short(m)),
                     )
                     .child(
                         v_flex()
@@ -828,7 +857,7 @@ impl CashFlowApp {
                     )
                     .child(
                         div()
-                            .w(px(96.0))
+                            .w(px(112.0))
                             .text_right()
                             .text_sm()
                             .font_weight(FontWeight::SEMIBOLD)
@@ -854,15 +883,15 @@ impl CashFlowApp {
                 h_flex()
                     .justify_between()
                     .items_center()
-                    .child(heading("By month"))
+                    .child(heading(self.t(Msg::ByMonth)))
                     .child(
                         h_flex()
                             .gap_3()
-                            .child(legend(p.success, "Income"))
-                            .child(legend(p.danger, "Expenses")),
+                            .child(legend(p.success, self.t(Msg::Income)))
+                            .child(legend(p.danger, self.t(Msg::Expenses))),
                     ),
             )
-            .child(div().text_xs().text_color(p.muted_fg).child("Click a month to open it. The number is the balance."))
+            .child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::YearHint)))
             .child(
                 div()
                     .id("year-months-scroll")
@@ -895,7 +924,7 @@ impl CashFlowApp {
             .storage
             .as_ref()
             .map(|s| s.dir().display().to_string())
-            .unwrap_or_else(|| "not available".to_string());
+            .unwrap_or_else(|| self.t(Msg::NotAvailable).to_string());
 
         h_flex().flex_1().min_h_0().items_start().p_6().child(
             v_flex().w(px(560.0)).max_h_full().child(
@@ -913,35 +942,32 @@ impl CashFlowApp {
                                         div()
                                             .text_sm()
                                             .text_color(p.muted_fg)
-                                            .child(format!("Version {}", env!("CARGO_PKG_VERSION"))),
+                                            .child(self.tf(Msg::Version, &[("version", env!("CARGO_PKG_VERSION"))])),
                                     ),
                             ),
                     )
-                    .child(div().text_sm().child(
-                        "Track your monthly income and expenses and see where the money goes as a \
-                         Sankey chart.",
-                    ))
+                    .child(div().text_sm().child(self.t(Msg::AboutDescription)))
                     .child(
                         v_flex()
                             .gap_2()
-                            .child(row("Author", env!("CARGO_PKG_AUTHORS").replace(':', ", ")))
-                            .child(row("License", env!("CARGO_PKG_LICENSE").to_string()))
-                            .child(row("Source", repo.to_string()))
-                            .child(row("Data folder", data_dir)),
+                            .child(row(self.t(Msg::Author), env!("CARGO_PKG_AUTHORS").replace(':', ", ")))
+                            .child(row(self.t(Msg::License), env!("CARGO_PKG_LICENSE").to_string()))
+                            .child(row(self.t(Msg::Source), repo.to_string()))
+                            .child(row(self.t(Msg::DataFolder), data_dir)),
                     )
                     .child(
                         h_flex().child(
                             Button::new("open-repo")
                                 .outline()
                                 .small()
-                                .label("Open on GitHub")
+                                .label(self.t(Msg::OpenOnGitHub))
                                 .on_click(cx.listener(move |_, _, _, cx| cx.open_url(repo))),
                         ),
                     )
                     .child(
                         v_flex()
                             .gap_2()
-                            .child(heading("License"))
+                            .child(heading(self.t(Msg::License)))
                             .child(
                                 div()
                                     .id("license-text")
@@ -955,9 +981,7 @@ impl CashFlowApp {
                                     .child(include_str!("../../LICENSE").replace("\r\n", "\n")),
                             ),
                     )
-                    .child(div().text_xs().text_color(p.muted_fg).child(
-                        "Built with Rust, GPUI and GPUI Kit (Apache-2.0). Icons from Lucide (ISC license).",
-                    )),
+                    .child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::ThirdParty))),
             ),
         )
     }
@@ -965,29 +989,76 @@ impl CashFlowApp {
     // ---- settings ----
 
     fn settings_page(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+        let languages: Vec<_> = std::iter::once((None, self.t(Msg::Automatic)))
+            .chain(Lang::ALL.iter().map(|&l| (Some(l), l.native_name())))
+            .map(|(lang, label)| {
+                pill(
+                    SharedString::from(format!("lang-{lang:?}")),
+                    label.to_string(),
+                    None,
+                    self.settings.language == lang,
+                    p,
+                )
+                .on_click(cx.listener(move |this, _, window, cx| this.set_language(lang, window, cx)))
+            })
+            .collect();
+        let currencies: Vec<_> = std::iter::once((None, self.t(Msg::Automatic).to_string()))
+            .chain(
+                Currency::ALL
+                    .iter()
+                    .map(|&c| {
+                        let (code, symbol) = (c.code(), c.symbol(self.lc.lang));
+                        (Some(c), if code == symbol { code.to_string() } else { format!("{code} {symbol}") })
+                    }),
+            )
+            .map(|(currency, label)| {
+                pill(
+                    SharedString::from(format!("cur-{currency:?}")),
+                    label,
+                    None,
+                    self.settings.currency == currency,
+                    p,
+                )
+                .on_click(cx.listener(move |this, _, window, cx| this.set_currency(currency, window, cx)))
+            })
+            .collect();
+        let hint = |text: &'static str| div().text_sm().text_color(p.muted_fg).child(text);
+
         h_flex().flex_1().min_h_0().items_start().p_6().child(
-            v_flex().w(px(520.0)).child(
-                card(p)
-                    .gap_3()
-                    .child(heading("Chart labels"))
-                    .child(div().text_sm().text_color(p.muted_fg).child(
-                        "Names of the automatic nodes in the money flow chart. They are also \
-                         used in the SankeyMATIC export and recognized on import.",
-                    ))
-                    .child(field("Middle node (all income flows in here)", p).child(Input::new(&self.total_in)))
-                    .child(field("When income exceeds expenses", p).child(Input::new(&self.savings_in)))
-                    .child(field("When expenses exceed income", p).child(Input::new(&self.deficit_in)))
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .child(Button::new("labels-save").primary().label("Save").on_click(
-                                cx.listener(|this, _, window, cx| this.save_labels(window, cx)),
-                            ))
-                            .child(Button::new("labels-reset").outline().label("Reset to defaults").on_click(
-                                cx.listener(|this, _, window, cx| this.reset_labels(window, cx)),
-                            )),
-                    ),
-            ),
+            v_flex()
+                .w(px(560.0))
+                .gap_4()
+                .child(
+                    card(p)
+                        .gap_3()
+                        .child(heading(self.t(Msg::LanguageTitle)))
+                        .child(hint(self.t(Msg::LanguageHelp)))
+                        .child(h_flex().flex_wrap().gap_2().children(languages))
+                        .child(heading(self.t(Msg::CurrencyTitle)))
+                        .child(hint(self.t(Msg::CurrencyHelp)))
+                        .child(h_flex().flex_wrap().gap_2().children(currencies)),
+                )
+                .child(
+                    card(p)
+                        .gap_3()
+                        .child(heading(self.t(Msg::ChartLabels)))
+                        .child(hint(self.t(Msg::ChartLabelsHelp)))
+                        .child(field(self.t(Msg::LabelTotal), p).child(Input::new(&self.total_in)))
+                        .child(field(self.t(Msg::LabelSavings), p).child(Input::new(&self.savings_in)))
+                        .child(field(self.t(Msg::LabelDeficit), p).child(Input::new(&self.deficit_in)))
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .child(Button::new("labels-save").primary().label(self.t(Msg::Save)).on_click(
+                                    cx.listener(|this, _, window, cx| this.save_labels(window, cx)),
+                                ))
+                                .child(
+                                    Button::new("labels-reset").outline().label(self.t(Msg::ResetDefaults)).on_click(
+                                        cx.listener(|this, _, window, cx| this.reset_labels(window, cx)),
+                                    ),
+                                ),
+                        ),
+                ),
         )
     }
 
@@ -1012,7 +1083,7 @@ impl CashFlowApp {
     fn category_form(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let editing = self.editing_cat.is_some();
 
-        let parents: Vec<_> = std::iter::once((None, "No parent".to_string(), None))
+        let parents: Vec<_> = std::iter::once((None, self.t(Msg::NoParent).to_string(), None))
             .chain(
                 self.cats
                     .flatten(self.cat_kind)
@@ -1050,22 +1121,22 @@ impl CashFlowApp {
 
         card(p)
             .gap_3()
-            .child(heading(if editing { "Edit category" } else { "New category" }))
+            .child(heading(if editing { self.t(Msg::EditCategory) } else { self.t(Msg::NewCategory) }))
             .child(self.segmented(self.cat_kind, true, p, cx))
-            .child(field("Name", p).child(Input::new(&self.cat_name_in)))
-            .child(field("Color", p).child(h_flex().flex_wrap().gap_2().children(swatches)))
-            .child(field("Parent", p).child(h_flex().flex_wrap().gap_2().children(parents)))
+            .child(field(self.t(Msg::Name), p).child(Input::new(&self.cat_name_in)))
+            .child(field(self.t(Msg::Color), p).child(h_flex().flex_wrap().gap_2().children(swatches)))
+            .child(field(self.t(Msg::Parent), p).child(h_flex().flex_wrap().gap_2().children(parents)))
             .child(
                 h_flex()
                     .gap_2()
                     .child(
                         Button::new("add-cat")
                             .primary()
-                            .label(if editing { "Save changes" } else { "Add category" })
+                            .label(if editing { self.t(Msg::SaveChanges) } else { self.t(Msg::AddCategory) })
                             .on_click(cx.listener(|this, _, window, cx| this.submit_category(window, cx))),
                     )
                     .when(editing, |row| {
-                        row.child(Button::new("cancel-cat").outline().label("Cancel").on_click(
+                        row.child(Button::new("cancel-cat").outline().label(self.t(Msg::Cancel)).on_click(
                             cx.listener(|this, _, window, cx| {
                                 this.clear_category_form(window, cx);
                                 cx.notify();
@@ -1079,7 +1150,7 @@ impl CashFlowApp {
         let mut body = v_flex().gap_1();
         for kind in [Kind::Income, Kind::Expense] {
             let flat = self.cats.flatten(kind);
-            let label = if kind == Kind::Income { "INCOME" } else { "EXPENSES" };
+            let label = if kind == Kind::Income { self.t(Msg::Income) } else { self.t(Msg::Expenses) }.to_uppercase();
             body = body.child(section_label(label, format!("{}", flat.len()), p));
             for (depth, c) in flat {
                 let id = c.id;
@@ -1101,7 +1172,7 @@ impl CashFlowApp {
                                 .font_weight(if depth == 0 { FontWeight::MEDIUM } else { FontWeight::NORMAL })
                                 .child(c.name.clone()),
                         )
-                        .child(Button::new(id_of("catedit", id)).ghost().small().label("Edit").on_click(
+                        .child(Button::new(id_of("catedit", id)).ghost().small().label(self.t(Msg::Edit)).on_click(
                             cx.listener(move |this, _, window, cx| this.edit_category(id, window, cx)),
                         ))
                         .child(Button::new(id_of("catdel", id)).ghost().small().icon(IconName::X).on_click(
@@ -1115,7 +1186,7 @@ impl CashFlowApp {
             .min_w_0()
             .h_full()
             .gap_2()
-            .child(heading("All categories"))
+            .child(heading(self.t(Msg::AllCategories)))
             .child(div().id("cats-scroll").flex_1().min_h_0().overflow_y_scroll().child(body))
     }
 }

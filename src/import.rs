@@ -12,6 +12,7 @@
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
+use crate::i18n::{Lang, Msg};
 use crate::model::{Categories, CategoryId, Entry, Kind, parse_amount_cents};
 use crate::settings::Labels;
 
@@ -82,19 +83,20 @@ struct Graph {
 }
 
 /// True if `name` is the user's custom label or the built-in default.
-fn is_name(name: &str, custom: &str, default: &str) -> bool {
-    name.eq_ignore_ascii_case(custom) || name.eq_ignore_ascii_case(default)
+fn is_name(name: &str, custom: &str, default: Msg) -> bool {
+    name.eq_ignore_ascii_case(custom)
+        || Lang::ALL.iter().any(|&l| name.eq_ignore_ascii_case(default.text(l)))
 }
 
 /// Parses with the default labels.
 #[cfg(test)]
 pub fn parse(text: &str) -> Result<ImportPlan, String> {
-    parse_with(text, &Labels::default())
+    parse_with(text, &Labels::default(), Lang::En)
 }
 
 /// `labels` are the names the user gave the automatic nodes; the built-in
 /// names are always recognized as well.
-pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
+pub fn parse_with(text: &str, labels: &Labels, lang: Lang) -> Result<ImportPlan, String> {
     let text = text.trim_start_matches('\u{feff}');
     let mut warnings: Vec<String> = Vec::new();
     let mut colors: HashMap<String, u32> = HashMap::new();
@@ -133,11 +135,11 @@ pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
         let source = line[..lb].trim();
         let (target, _) = split_color(&line[rb + 1..]);
         if source.is_empty() || target.is_empty() || source == target {
-            warnings.push(format!("Line {}: skipped (missing or identical source/target).", n + 1));
+            warnings.push(Msg::ImpLineSkippedNodes.format(lang, &[("line", &(n + 1).to_string())]));
             continue;
         }
         let Some(cents) = parse_amount_cents(&line[lb + 1..rb]) else {
-            warnings.push(format!("Line {}: skipped (amount is not a positive number).", n + 1));
+            warnings.push(Msg::ImpLineSkippedAmount.format(lang, &[("line", &(n + 1).to_string())]));
             continue;
         };
         let (s, t) = (node(&mut g, source), node(&mut g, target));
@@ -155,7 +157,7 @@ pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
         g.inn[t].push((s, cents));
     }
     if g.names.is_empty() {
-        return Err("No flows found. Expected lines like: Salary [3000] Total income".to_string());
+        return Err(Msg::ImpNoFlows.text(lang).to_string());
     }
 
     let n = g.names.len();
@@ -165,17 +167,13 @@ pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
     let hub = g
         .names
         .iter()
-        .position(|s| is_name(s, &labels.total, "total income"))
+        .position(|s| is_name(s, &labels.total, Msg::DefLabelTotal))
         .or_else(|| {
             (0..n)
                 .filter(|&i| in_sum[i] > 0 && out_sum[i] > 0)
                 .max_by_key(|&i| (in_sum[i].min(out_sum[i]), Reverse(i)))
         })
-        .ok_or_else(|| {
-            "Could not find a middle node that has income flowing in and expenses flowing out \
-             (like \"Total income\")."
-                .to_string()
-        })?;
+        .ok_or_else(|| Msg::ImpNoHub.text(lang).to_string())?;
 
     let reach = |start: usize, next: &dyn Fn(usize) -> Vec<usize>| -> HashSet<usize> {
         let mut seen = HashSet::new();
@@ -197,18 +195,18 @@ pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
     for i in both {
         income.remove(&i);
         expense.remove(&i);
-        warnings.push(format!("\"{}\" is on both sides of the middle node and was skipped.", g.names[i]));
+        warnings.push(Msg::ImpBothSides.format(lang, &[("name", &g.names[i])]));
     }
     // Derived values in this app: skipped on purpose, so not worth a warning.
     let mut derived = 0;
     for i in expense.clone() {
-        if is_name(&g.names[i], &labels.savings, "savings") && g.out[i].is_empty() {
+        if is_name(&g.names[i], &labels.savings, Msg::DefLabelSavings) && g.out[i].is_empty() {
             expense.remove(&i);
             derived += 1;
         }
     }
     for i in income.clone() {
-        if is_name(&g.names[i], &labels.deficit, "deficit") && g.inn[i].is_empty() {
+        if is_name(&g.names[i], &labels.deficit, Msg::DefLabelDeficit) && g.inn[i].is_empty() {
             income.remove(&i);
             derived += 1;
         }
@@ -216,9 +214,9 @@ pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
     let connected = income.len() + expense.len() + 1 + derived;
     let unconnected = n.saturating_sub(connected);
     if unconnected > 0 {
-        warnings.push(format!(
-            "{unconnected} node(s) not connected to \"{}\" were ignored.",
-            g.names[hub]
+        warnings.push(Msg::ImpUnconnected.format(
+            lang,
+            &[("n", &unconnected.to_string()), ("hub", &g.names[hub])],
         ));
     }
 
@@ -238,10 +236,7 @@ pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
             continue;
         };
         if cands.len() > 1 {
-            warnings.push(format!(
-                "\"{}\" is linked to several nodes; only the largest flow was imported.",
-                g.names[i]
-            ));
+            warnings.push(Msg::ImpSeveral.format(lang, &[("name", &g.names[i])]));
         }
         chosen.insert(i, best);
     }
@@ -291,7 +286,7 @@ pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
     }
     for &i in &sorted {
         if !emitted.contains(&i) {
-            plan.warnings.push(format!("\"{}\" could not be placed in the category tree and was skipped.", g.names[i]));
+            plan.warnings.push(Msg::ImpUnplaced.format(lang, &[("name", &g.names[i])]));
         }
     }
 
@@ -300,7 +295,7 @@ pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
         let Some(&(_, total)) = chosen.get(&i) else { continue };
         let direct = total - child_sum.get(&i).copied().unwrap_or(0);
         if direct < 0 {
-            plan.warnings.push(format!("\"{}\": sub-categories add up to more than the node itself.", g.names[i]));
+            plan.warnings.push(Msg::ImpChildrenExceed.format(lang, &[("name", &g.names[i])]));
         } else if direct > 0 {
             let kind = kind_of(i);
             plan.entries.push(PlannedEntry { category: g.names[i].clone(), kind, amount_cents: direct });
@@ -312,7 +307,7 @@ pub fn parse_with(text: &str, labels: &Labels) -> Result<ImportPlan, String> {
     }
 
     if plan.entries.is_empty() {
-        return Err("The text has flows, but nothing that could be imported as income or expenses.".to_string());
+        return Err(Msg::ImpNothing.text(lang).to_string());
     }
     Ok(plan)
 }
@@ -464,7 +459,7 @@ Budget [1200.5] Savings
         let text = original.to_sankeymatic("t");
         assert!(text.contains("Budget [30] Food"), "{text}");
 
-        let plan = parse_with(&text, &labels).unwrap();
+        let plan = parse_with(&text, &labels, Lang::En).unwrap();
         assert_eq!((plan.income_cents, plan.expense_cents), (10_000, 3_000));
         assert!(plan.warnings.is_empty(), "{:?}", plan.warnings);
         assert!(plan.categories.iter().all(|c| c.name != "Left over"));

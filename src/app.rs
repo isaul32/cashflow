@@ -12,6 +12,7 @@ use gpui_kit::*;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::i18n::{Currency, Lang, Locale, Msg, Plural, SystemLocale};
 use crate::import::{self, ImportPlan};
 use crate::model::{Categories, CategoryId, Entry, Kind, MonthKey, parse_amount_cents};
 use crate::sankey::{self, FlowNode, SankeyData};
@@ -36,6 +37,10 @@ enum Page {
 pub struct CashFlowApp {
     storage: Option<Storage>,
     settings: Settings,
+    /// Language of the operating system, used when the language is "automatic".
+    system: SystemLocale,
+    /// The resolved language and currency.
+    lc: Locale,
     /// App logo shown in the sidebar (same artwork as the window icon).
     logo: Arc<Image>,
     total_in: Entity<InputState>,
@@ -75,16 +80,22 @@ pub struct CashFlowApp {
     _subs: Vec<Subscription>,
 }
 
-fn input(window: &mut Window, cx: &mut Context<CashFlowApp>, placeholder: &'static str) -> Entity<InputState> {
+fn input(
+    window: &mut Window,
+    cx: &mut Context<CashFlowApp>,
+    placeholder: impl Into<SharedString>,
+) -> Entity<InputState> {
+    let placeholder: SharedString = placeholder.into();
     cx.new(|cx| InputState::new(window, cx).placeholder(placeholder))
 }
 
 fn input_with(
     window: &mut Window,
     cx: &mut Context<CashFlowApp>,
-    placeholder: &'static str,
+    placeholder: impl Into<SharedString>,
     value: &str,
 ) -> Entity<InputState> {
+    let placeholder: SharedString = placeholder.into();
     let value = value.to_string();
     cx.new(|cx| InputState::new(window, cx).placeholder(placeholder).default_value(value))
 }
@@ -93,31 +104,45 @@ fn id_of(prefix: &str, id: u64) -> SharedString {
     format!("{prefix}-{id}").into()
 }
 
-/// Groups digits with commas: 1234567 -> "1,234,567".
-fn group(n: i64) -> String {
-    let digits = n.abs().to_string();
-    let mut out = String::new();
-    for (i, ch) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i) % 3 == 0 {
-            out.push(',');
-        }
-        out.push(ch);
-    }
-    if n < 0 { format!("-{out}") } else { out }
-}
-
-/// "€1,234.50"; negative amounts get a leading minus.
-fn money(cents: i64) -> String {
-    let sign = if cents < 0 { "-" } else { "" };
-    let c = cents.abs();
-    format!("{sign}€{}.{:02}", group(c / 100), c % 100)
-}
-
 impl CashFlowApp {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let name_in = input(window, cx, "Optional note");
-        let amount_in = input(window, cx, "0.00");
-        let cat_name_in = input(window, cx, "New category name");
+        let storage = Storage::default_location();
+        let month = MonthKey::current();
+        let system = SystemLocale::detect();
+        let mut warnings: Vec<String> = Vec::new();
+        let mut settings = Settings::default();
+        let mut first_run = true;
+        let (mut cats, entries) = match &storage {
+            Some(st) => {
+                first_run = !st.has_categories();
+                let c = st.load_categories();
+                let m = st.load_month(month);
+                let s = st.load_settings();
+                warnings.extend(s.warning);
+                settings = s.value;
+                warnings.extend(c.warning);
+                warnings.extend(m.warning);
+                (c.value, m.value.entries)
+            }
+            None => (Categories::default(), Vec::new()),
+        };
+        settings.labels = settings.labels.sanitized();
+        let lc = Locale::resolve(settings.language, settings.currency, &system);
+        if storage.is_none() {
+            warnings.push(lc.t(Msg::ErrNoDataDir).to_string());
+        }
+        // The starter categories are named in the language of the first run.
+        if first_run {
+            cats = Categories::defaults_for(lc.lang);
+        }
+
+        let name_in = input(window, cx, lc.t(Msg::PlaceholderNote));
+        let amount_in = input(window, cx, lc.plain_amount(0));
+        let cat_name_in = input(window, cx, lc.t(Msg::CatNamePlaceholder));
+        let labels = settings.labels.resolved(lc.lang);
+        let total_in = input_with(window, cx, lc.t(Msg::DefLabelTotal), &labels.total);
+        let savings_in = input_with(window, cx, lc.t(Msg::DefLabelSavings), &labels.savings);
+        let deficit_in = input_with(window, cx, lc.t(Msg::DefLabelDeficit), &labels.deficit);
 
         let subs = vec![
             cx.subscribe_in(&amount_in, window, |this, _, ev: &InputEvent, window, cx| {
@@ -132,36 +157,14 @@ impl CashFlowApp {
             }),
         ];
 
-        let storage = Storage::default_location();
-        let month = MonthKey::current();
-        let mut warnings = Vec::new();
-        let mut settings = Settings::default();
-        let (cats, entries) = match &storage {
-            Some(st) => {
-                let c = st.load_categories();
-                let m = st.load_month(month);
-                let s = st.load_settings();
-                warnings.extend(s.warning);
-                settings = s.value;
-                warnings.extend(c.warning);
-                warnings.extend(m.warning);
-                (c.value, m.value.entries)
-            }
-            None => {
-                warnings.push("No data directory available; changes will not be saved.".to_string());
-                (Categories::default(), Vec::new())
-            }
-        };
-        settings.labels = settings.labels.sanitized();
-        let total_in = input_with(window, cx, "Total income", &settings.labels.total);
-        let savings_in = input_with(window, cx, "Savings", &settings.labels.savings);
-        let deficit_in = input_with(window, cx, "Deficit", &settings.labels.deficit);
         let next_entry_id = MonthData { entries: entries.clone() }.next_entry_id();
         let category = cats.flatten(Kind::Expense).first().map(|(_, c)| c.id);
         let mut app = CashFlowApp {
             data: SankeyData::default(),
             storage,
             settings,
+            system,
+            lc,
             logo: Arc::new(Image::from_bytes(
                 ImageFormat::Png,
                 include_bytes!("../assets/icon.png").to_vec(),
@@ -184,8 +187,7 @@ impl CashFlowApp {
             cat_parent: None,
             cat_color: PALETTE[0],
             cat_name_in,
-            error: (!warnings.is_empty()).then(|| warnings.join("
-").into()),
+            error: (!warnings.is_empty()).then(|| warnings.join("\n").into()),
             copied: false,
             year: month.year,
             year_summary: YearSummary::default(),
@@ -197,9 +199,72 @@ impl CashFlowApp {
         app
     }
 
+    // ---- language ----
+
+    fn t(&self, msg: Msg) -> &'static str {
+        self.lc.t(msg)
+    }
+
+    fn tf(&self, msg: Msg, args: &[(&str, &str)]) -> String {
+        self.lc.tf(msg, args)
+    }
+
+    /// The chart labels in the current language.
+    fn labels(&self) -> Labels {
+        self.settings.labels.resolved(self.lc.lang)
+    }
+
+    /// Recomputes the locale from the settings and refreshes everything that
+    /// depends on it: placeholders, label fields and the charts.
+    fn apply_locale(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.lc = Locale::resolve(self.settings.language, self.settings.currency, &self.system);
+        let lc = self.lc;
+        let amount_placeholder = lc.plain_amount(0);
+        self.name_in.update(cx, |s, cx| s.set_placeholder(lc.t(Msg::PlaceholderNote), window, cx));
+        self.amount_in.update(cx, |s, cx| s.set_placeholder(amount_placeholder, window, cx));
+        self.cat_name_in.update(cx, |s, cx| s.set_placeholder(lc.t(Msg::CatNamePlaceholder), window, cx));
+        let labels = self.labels();
+        for (input, placeholder, text) in [
+            (&self.total_in, Msg::DefLabelTotal, &labels.total),
+            (&self.savings_in, Msg::DefLabelSavings, &labels.savings),
+            (&self.deficit_in, Msg::DefLabelDeficit, &labels.deficit),
+        ] {
+            input.update(cx, |s, cx| {
+                s.set_placeholder(lc.t(placeholder), window, cx);
+                s.set_value(text.as_str(), window, cx);
+            });
+        }
+        self.refresh();
+        cx.notify();
+    }
+
+    fn set_language(&mut self, language: Option<Lang>, window: &mut Window, cx: &mut Context<Self>) {
+        self.settings.language = language;
+        self.persist_settings();
+        self.apply_locale(window, cx);
+    }
+
+    fn set_currency(&mut self, currency: Option<Currency>, window: &mut Window, cx: &mut Context<Self>) {
+        self.settings.currency = currency;
+        self.persist_settings();
+        self.apply_locale(window, cx);
+    }
+
+    /// Writes `settings.json`; a failure is shown as an error.
+    fn persist_settings(&mut self) -> bool {
+        let Some(st) = &self.storage else { return false };
+        match st.save_settings(&self.settings) {
+            Ok(()) => true,
+            Err(e) => {
+                self.error = Some(self.tf(Msg::ErrSaveSettingsFailed, &[("error", &e.to_string())]).into());
+                false
+            }
+        }
+    }
+
     fn refresh(&mut self) {
         self.copied = false;
-        self.data = sankey::build_with(&self.cats, &self.entries, &self.settings.labels);
+        self.data = sankey::build_with(&self.cats, &self.entries, &self.labels());
         self.refresh_year();
     }
 
@@ -219,7 +284,7 @@ impl CashFlowApp {
                 }
             })
             .collect();
-        self.year_summary = year::summarize(self.year, &self.cats, &months, &self.settings.labels);
+        self.year_summary = year::summarize(self.year, &self.cats, &months, &self.labels());
     }
 
     fn switch_year(&mut self, year: i32, cx: &mut Context<Self>) {
@@ -244,7 +309,7 @@ impl CashFlowApp {
                 format!("cashflow-{}-sankeymatic.txt", self.year),
             ),
             _ => (
-                self.data.to_sankeymatic(&self.month.title()),
+                self.data.to_sankeymatic(&self.lc.month_title(self.month)),
                 format!("cashflow-{}-sankeymatic.txt", self.month),
             ),
         }
@@ -258,7 +323,7 @@ impl CashFlowApp {
             st.save_month(self.month, &MonthData { entries: self.entries.clone() })
         });
         if let Err(e) = res {
-            self.error = Some(format!("Saving failed: {e}").into());
+            self.error = Some(self.tf(Msg::ErrSaveFailed, &[("error", &e.to_string())]).into());
         }
     }
 
@@ -273,7 +338,10 @@ impl CashFlowApp {
                 changed = true;
             }
             if changed && let Err(e) = st.save_month(key, &data) {
-                self.error = Some(format!("Saving {key} failed: {e}").into());
+                self.error = Some(
+                    self.tf(Msg::ErrSaveMonthFailed, &[("month", &key.to_string()), ("error", &e.to_string())])
+                        .into(),
+                );
             }
         }
     }
@@ -307,17 +375,14 @@ impl CashFlowApp {
         self.refresh();
         self.error = None;
         self.notice = None;
-        if let Some(st) = &self.storage {
-            match st.save_settings(&self.settings) {
-                Ok(()) => self.notice = Some("Chart labels saved.".into()),
-                Err(e) => self.error = Some(format!("Saving settings failed: {e}").into()),
-            }
+        if self.persist_settings() {
+            self.notice = Some(self.t(Msg::NoticeLabelsSaved).into());
         }
         cx.notify();
     }
 
     fn reset_labels(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let d = Labels::default();
+        let d = Labels::default().resolved(self.lc.lang);
         for (input, text) in [
             (&self.total_in, &d.total),
             (&self.savings_in, &d.savings),
@@ -341,8 +406,14 @@ impl CashFlowApp {
             let res = std::fs::write(&path, text);
             this.update(cx, |this, cx| {
                 match res {
-                    Ok(()) => this.notice = Some(format!("Saved {}", path.display()).into()),
-                    Err(e) => this.error = Some(format!("Could not save the file: {e}").into()),
+                    Ok(()) => {
+                        let m = this.tf(Msg::NoticeSaved, &[("path", &path.display().to_string())]);
+                        this.notice = Some(m.into());
+                    }
+                    Err(e) => {
+                        let m = this.tf(Msg::ErrSaveFileFailed, &[("error", &e.to_string())]);
+                        this.error = Some(m.into());
+                    }
                 }
                 cx.notify();
             })
@@ -355,7 +426,7 @@ impl CashFlowApp {
         match cx.read_from_clipboard().and_then(|item| item.text()) {
             Some(text) => self.start_import(&text, cx),
             None => {
-                self.set_error("The clipboard has no text. Copy SankeyMATIC text first.");
+                self.set_error(self.t(Msg::ErrClipboardEmpty));
                 cx.notify();
             }
         }
@@ -366,7 +437,7 @@ impl CashFlowApp {
             files: true,
             directories: false,
             multiple: false,
-            prompt: Some("Select a SankeyMATIC text file".into()),
+            prompt: Some(self.t(Msg::PromptOpenFile).into()),
         });
         cx.spawn(async move |this, cx| {
             let Ok(Ok(Some(paths))) = rx.await else { return };
@@ -375,7 +446,10 @@ impl CashFlowApp {
             this.update(cx, |this, cx| {
                 match read {
                     Ok(text) => this.start_import(&text, cx),
-                    Err(e) => this.error = Some(format!("Could not read the file: {e}").into()),
+                    Err(e) => {
+                        let m = this.tf(Msg::ErrReadFileFailed, &[("error", &e.to_string())]);
+                        this.error = Some(m.into());
+                    }
                 }
                 cx.notify();
             })
@@ -386,7 +460,7 @@ impl CashFlowApp {
 
     /// Parses text and shows the confirmation panel; nothing changes yet.
     fn start_import(&mut self, text: &str, cx: &mut Context<Self>) {
-        match import::parse_with(text, &self.settings.labels) {
+        match import::parse_with(text, &self.labels(), self.lc.lang) {
             Ok(plan) => {
                 self.pending_import = Some(plan);
                 self.error = None;
@@ -394,7 +468,7 @@ impl CashFlowApp {
             }
             Err(e) => {
                 self.pending_import = None;
-                self.error = Some(format!("Import failed: {e}").into());
+                self.error = Some(self.tf(Msg::ErrImportFailed, &[("error", &e)]).into());
             }
         }
         cx.notify();
@@ -414,12 +488,13 @@ impl CashFlowApp {
         self.category = self.cats.flatten(self.kind).first().map(|(_, c)| c.id);
         self.error = None;
         self.commit();
+        let period = self.lc.month_inline(self.month);
+        let entries = self.lc.count(Plural::CountEntries, stats.entries_added);
+        let new_cats = self.lc.count(Plural::CountNewCategories, stats.categories_added);
         self.notice = Some(
-            format!(
-                "Imported {} entries into {} ({} new categories).",
-                stats.entries_added,
-                self.month.title(),
-                stats.categories_added
+            self.tf(
+                Msg::NoticeImported,
+                &[("entries", &entries), ("period", &period), ("newcats", &new_cats)],
             )
             .into(),
         );
@@ -445,13 +520,14 @@ impl CashFlowApp {
 
     fn submit_entry(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(category_id) = self.category else {
-            self.set_error("Pick a category first (create one on the Categories page).");
+            self.set_error(self.t(Msg::ErrPickCategory));
             cx.notify();
             return;
         };
         let Some(amount_cents) = parse_amount_cents(self.amount_in.read(cx).value().as_ref())
         else {
-            self.set_error("Enter a positive amount, e.g. 12.50.");
+            let example = self.lc.plain_amount(1250);
+            self.set_error(self.tf(Msg::ErrPositiveAmount, &[("example", &example)]));
             cx.notify();
             return;
         };
@@ -491,7 +567,7 @@ impl CashFlowApp {
         self.category = Some(e.category_id);
         self.editing = Some(id);
         self.name_in.update(cx, |s, cx| s.set_value(e.name.as_str(), window, cx));
-        let amount = format!("{:.2}", e.amount_cents as f64 / 100.0);
+        let amount = self.lc.plain_amount(e.amount_cents);
         self.amount_in.update(cx, |s, cx| s.set_value(amount.as_str(), window, cx));
         self.error = None;
         cx.notify();
@@ -517,7 +593,7 @@ impl CashFlowApp {
     fn submit_category(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let name = self.cat_name_in.read(cx).value().trim().to_string();
         if name.is_empty() {
-            self.set_error("Category name cannot be empty.");
+            self.set_error(self.t(Msg::ErrCatNameEmpty));
             cx.notify();
             return;
         }
@@ -525,14 +601,14 @@ impl CashFlowApp {
         if self.cats.items.iter().any(|c| {
             c.kind == self.cat_kind && Some(c.id) != editing && c.name.eq_ignore_ascii_case(&name)
         }) {
-            self.set_error("A category with that name already exists.");
+            self.set_error(self.t(Msg::ErrCatExists));
             cx.notify();
             return;
         }
         match editing {
             Some(id) => {
                 if !self.cats.update(id, name, self.cat_parent, self.cat_color) {
-                    self.set_error("That parent is not allowed for this category.");
+                    self.set_error(self.t(Msg::ErrParent));
                     cx.notify();
                     return;
                 }
@@ -611,7 +687,7 @@ impl CashFlowApp {
         let target = match target {
             Some(t) => t,
             None if self.category_used(id) => {
-                self.set_error("Cannot delete the only category that still has entries.");
+                self.set_error(self.t(Msg::ErrCannotDelete));
                 cx.notify();
                 return;
             }

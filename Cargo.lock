@@ -751,6 +751,7 @@ dependencies = [
  "gpui-kit",
  "serde",
  "serde_json",
+ "sys-locale",
  "winresource",
 ]
 

@@ -1,0 +1,338 @@
+---
+import { Image, getImage } from 'astro:assets';
+import iconImg from '../assets/icon.png';
+import Base from '../layouts/Base.astro';
+import { LANGS, LANG_NAMES, langPath, strings, type Lang } from '../i18n/translations';
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const t = strings[lang];
+
+const REPO = 'https://github.com/isaul32/cashflow';
+
+// Screenshots are captured per language and theme by tools/screenshots.ps1.
+const shots = import.meta.glob<{ default: ImageMetadata }>('../assets/screenshots/*.png', { eager: true });
+const shot = (theme: 'light' | 'dark') => {
+  const found = shots[`../assets/screenshots/${lang}-${theme}.png`] ?? shots[`../assets/screenshots/en-${theme}.png`];
+  return found.default;
+};
+const shotLight = shot('light');
+const shotDark = shot('dark');
+
+// WebP in two widths, light and dark variants.
+const widths = [720, 1366];
+const srcset = async (src: ImageMetadata) =>
+  (
+    await Promise.all(
+      widths.map(async (width) => {
+        const img = await getImage({ src, format: 'webp', width });
+        return `${img.src} ${width}w`;
+      }),
+    )
+  ).join(', ');
+const lightSet = await srcset(shotLight);
+const darkSet = await srcset(shotDark);
+const fallback = await getImage({ src: shotLight, format: 'webp', width: 1366 });
+const shotSizes = '(min-width: 1080px) 1032px, calc(100vw - 48px)';
+
+// Download links go through /download/* (see public/_redirects).
+const platforms = [
+  {
+    id: 'windows',
+    name: 'Windows',
+    req: t.winReq,
+    files: [
+      { href: '/download/windows-installer', label: t.installer, detail: t.installerDetail },
+      { href: '/download/windows-portable', label: t.portable, detail: t.portableDetail },
+    ],
+  },
+  {
+    id: 'mac',
+    name: 'macOS',
+    req: t.macReq,
+    files: [{ href: '/download/macos', label: t.dmg, detail: t.dmgDetail }],
+  },
+  {
+    id: 'linux',
+    name: 'Linux',
+    req: t.linuxReq,
+    files: [
+      { href: '/download/linux-appimage-x64', label: `${t.appImage}, x64`, detail: t.appImageDetail },
+      { href: '/download/linux-appimage-arm64', label: `${t.appImage}, arm64`, detail: t.appImageDetail },
+      { href: '/download/linux-deb-x64', label: `${t.deb}, x64`, detail: t.debDetail },
+      { href: '/download/linux-deb-arm64', label: `${t.deb}, arm64`, detail: t.debDetail },
+    ],
+  },
+];
+
+// Strings the client script needs.
+const clientData = {
+  lang,
+  downloadFor: t.downloadFor,
+  osNames: { windows: 'Windows', mac: 'macOS', linux: 'Linux' },
+  osNotes: {
+    windows: t.winReq,
+    mac: t.macReq,
+    linux: t.linuxReq,
+  },
+  osHref: {
+    windows: '/download/windows-installer',
+    mac: '/download/macos',
+    linux: '/download/linux-appimage-x64',
+    linuxArm: '/download/linux-appimage-arm64',
+  },
+  mobile: { label: t.getDesktopApp, note: t.availableOn },
+  banner: Object.fromEntries(
+    LANGS.map((l) => [l, { text: strings[l].bannerText, link: strings[l].bannerSwitch, href: langPath(l) }]),
+  ),
+};
+---
+
+<Base lang={lang}>
+  <div id="lang-banner" class="banner" hidden>
+    <div class="wrap banner-inner">
+      <span data-banner-text></span>
+      <a href="/" data-banner-link></a>
+      <button type="button" class="btn banner-close" data-banner-close aria-label={t.dismiss}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="wrap nav">
+    <a class="brand" href={langPath(lang)}>
+      <Image src={iconImg} alt="" width={30} height={30} />
+      CashFlow
+    </a>
+    <div class="nav-right">
+      <nav aria-label={t.languageLabel}>
+        <details class="langmenu">
+          <summary class="langbtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3Z"></path></svg>
+            <span>{LANG_NAMES[lang]}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+          </summary>
+          <ul class="langlist">
+            {
+              LANGS.map((l) => (
+                <li>
+                  <a class="langitem" href={langPath(l)} hreflang={l} lang={l} data-set-lang={l} aria-current={l === lang ? 'page' : undefined}>
+                    {LANG_NAMES[l]}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </details>
+      </nav>
+      <a class="gh-link" href={REPO}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.37-3.87-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"></path></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+
+  <main>
+    <header class="wrap hero">
+      <h1>{t.heroTitle}</h1>
+      <p class="lead">{t.heroLead}</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" id="hero-download" href="#download">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"></path></svg>
+          <span id="hero-label">{t.getDesktopApp}</span>
+        </a>
+        <a class="btn btn-ghost" href={REPO}>{t.viewOnGithub}</a>
+      </div>
+      <div class="hero-note"><span id="hero-note">{t.availableOn}</span> · <a href="#download">{t.otherPlatforms}</a></div>
+      <div class="hero-note">{t.free}</div>
+    </header>
+
+    <div class="wrap shot">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset={darkSet} sizes={shotSizes} type="image/webp" />
+        <img
+          src={fallback.src}
+          srcset={lightSet}
+          sizes={shotSizes}
+          width="1366"
+          height="893"
+          alt={t.screenshotAlt}
+          fetchpriority="high"
+        />
+      </picture>
+    </div>
+
+    <section id="features" class="wrap block">
+      <h2>{t.featuresTitle}</h2>
+      <div class="grid-features">
+        {
+          t.features.map((f) => (
+            <div class="card">
+              <div class="card-title">{f.title}</div>
+              <p>{f.text}</p>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <section id="download" class="wrap block">
+      <h2>{t.downloadTitle}</h2>
+      <p class="lead-2">{t.downloadLead}</p>
+      <div class="grid-downloads">
+        {
+          platforms.map((p) => (
+            <div class="card platform" data-platform={p.id}>
+              <div class="platform-head">
+                <div class="platform-name">{p.name}</div>
+                <span class="badge">{t.yourSystem}</span>
+              </div>
+              <div class="platform-req">{p.req}</div>
+              <div class="files">
+                {p.files.map((f) => (
+                  <a class="dl" href={f.href}>
+                    <span>
+                      {f.label}
+                      <small>{f.detail}</small>
+                    </span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"></path></svg>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))
+        }
+      </div>
+
+      <div id="macos-help" class="card help">
+        <div class="card-title">{t.macHelpTitle}</div>
+        <p>{t.macHelpIntro}</p>
+        <ol>{t.macHelpSteps.map((s) => <li>{s}</li>)}</ol>
+        <p>{t.macHelpTerminal}</p>
+        <pre><code>xattr -d com.apple.quarantine /Applications/CashFlow.app</code></pre>
+      </div>
+
+      <p class="fine">
+        {t.verify} <a href={`${REPO}#build-from-source`}>{t.buildFromSource}</a>
+      </p>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div style="font-weight:700;font-size:16px">CashFlow</div>
+        <p>{t.footerTagline}</p>
+      </div>
+      <div class="fcol">
+        <h3>{t.footerProduct}</h3>
+        <a href="#features">{t.footerFeatures}</a>
+        <a href="#download">{t.footerDownload}</a>
+        <a href={`${REPO}/releases`}>{t.footerReleaseNotes}</a>
+      </div>
+      <div class="fcol">
+        <h3>{t.footerProject}</h3>
+        <a href={REPO}>GitHub</a>
+        <a href={`${REPO}/issues`}>{t.footerIssue}</a>
+        <a href={`${REPO}/blob/main/LICENSE`}>{t.footerLicense}</a>
+      </div>
+      <div class="fcol">
+        <h3>{t.footerLanguage}</h3>
+        {LANGS.map((l) => <a href={langPath(l)} hreflang={l} lang={l} data-set-lang={l}>{LANG_NAMES[l]}</a>)}
+      </div>
+    </div>
+    <div class="footer-credits">
+      <div>{t.builtApp} <a href="https://gpui-kit.com">GPUI Kit</a>.</div>
+      <div>{t.builtSite} <a href="https://astro.build">Astro</a>.</div>
+      <div>&copy; Sauli Anto. {t.licensed}</div>
+    </div>
+  </footer>
+
+  <script type="application/json" id="client-data" set:html={JSON.stringify(clientData)} />
+  <script>
+    const data = JSON.parse(document.getElementById('client-data')!.textContent!);
+    const SUPPORTED = ['en', 'fi', 'sv', 'de', 'fr', 'es'];
+
+    const store = {
+      get(key: string) {
+        try {
+          return localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      },
+      set(key: string, value: string) {
+        try {
+          localStorage.setItem(key, value);
+        } catch {}
+      },
+    };
+
+    // Remember an explicit language choice so we never override it.
+    document.querySelectorAll<HTMLAnchorElement>('[data-set-lang]').forEach((a) => {
+      a.addEventListener('click', () => store.set('cf-lang', a.dataset.setLang!));
+    });
+
+    // Language suggestion banner.
+    function preferredLang(): string {
+      const prefs = navigator.languages?.length ? navigator.languages : [navigator.language];
+      for (const p of prefs) {
+        const code = String(p).toLowerCase().slice(0, 2);
+        if (SUPPORTED.includes(code)) return code;
+      }
+      return 'en';
+    }
+    const banner = document.getElementById('lang-banner');
+    if (banner && !store.get('cf-lang') && !store.get('cf-banner-dismissed')) {
+      const pref = preferredLang();
+      if (pref !== data.lang) {
+        const b = data.banner[pref];
+        banner.querySelector('[data-banner-text]')!.textContent = b.text;
+        const link = banner.querySelector<HTMLAnchorElement>('[data-banner-link]')!;
+        link.textContent = b.link;
+        link.href = b.href;
+        link.hreflang = pref;
+        link.lang = pref;
+        link.addEventListener('click', () => store.set('cf-lang', pref));
+        banner.lang = pref;
+        banner.hidden = false;
+      }
+    }
+    banner?.querySelector('[data-banner-close]')?.addEventListener('click', () => {
+      store.set('cf-banner-dismissed', '1');
+      banner.hidden = true;
+    });
+
+    // Operating system detection for the download button.
+    async function detect() {
+      const ua = navigator.userAgent.toLowerCase();
+      const uad = (navigator as any).userAgentData;
+      const plat = String(uad?.platform || navigator.platform || '').toLowerCase();
+      const mobile = /android|iphone|ipad|ipod|mobile/.test(ua) || uad?.mobile === true;
+      let os: 'windows' | 'mac' | 'linux' = 'windows';
+      if (/mac/.test(plat) || /mac os x/.test(ua)) os = 'mac';
+      else if (/linux|x11|cros/.test(plat) || /linux/.test(ua)) os = 'linux';
+      else if (!/win/.test(plat) && !/windows/.test(ua)) return { os: null as null, mobile, arm: false };
+      let arm = false;
+      if (os === 'linux' && uad?.getHighEntropyValues) {
+        try {
+          const v = await uad.getHighEntropyValues(['architecture']);
+          arm = v.architecture === 'arm';
+        } catch {}
+      }
+      return { os, mobile, arm };
+    }
+
+    detect().then(({ os, mobile, arm }) => {
+      if (mobile || !os) return; // keep the default "get the desktop app" button
+      const label = data.downloadFor.replace('{os}', data.osNames[os]);
+      document.getElementById('hero-label')!.textContent = label;
+      document.getElementById('hero-note')!.textContent = data.osNotes[os];
+      (document.getElementById('hero-download') as HTMLAnchorElement).href =
+        os === 'linux' && arm ? data.osHref.linuxArm : data.osHref[os];
+      document.querySelector(`.platform[data-platform="${os}"]`)?.classList.add('is-current');
+    });
+  </script>
+</Base>

@@ -1,0 +1,27 @@
+#!/bin/sh
+# Regenerates the app screenshots (website and README) before a commit that
+# changes the app, so the images in version control always match the code.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Skip for one commit:     SKIP_SCREENSHOTS=1 git commit ...
+
+[ -n "$SKIP_SCREENSHOTS" ] && exit 0
+
+# Only when something that affects the UI or the demo data is staged.
+if ! git diff --cached --name-only | grep -qE '^(src/|assets/|build\.rs|Cargo\.(toml|lock)$|site/tools/(demo/|screenshots\.ps1$))'; then
+  exit 0
+fi
+
+POWERSHELL=$(command -v powershell.exe || command -v pwsh)
+if [ -z "$POWERSHELL" ]; then
+  echo "pre-commit: PowerShell not found, skipping screenshots (the script is Windows only)." >&2
+  exit 0
+fi
+
+echo "pre-commit: refreshing screenshots (about 3 minutes, don't touch other windows)..."
+if ! "$POWERSHELL" -NoProfile -ExecutionPolicy Bypass -File site/tools/screenshots.ps1; then
+  echo "pre-commit: screenshot capture failed. Fix it or commit with SKIP_SCREENSHOTS=1." >&2
+  exit 1
+fi
+
+git add site/src/assets/screenshots docs/screenshot.png

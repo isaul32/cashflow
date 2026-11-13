@@ -1,0 +1,76 @@
+{
+  "entries": [
+    {
+      "id": 1,
+      "category_id": 1,
+      "name": "Månadslön",
+      "amount_cents": 320000
+    },
+    {
+      "id": 2,
+      "category_id": 2,
+      "name": "Webbprojekt",
+      "amount_cents": 65000
+    },
+    {
+      "id": 3,
+      "category_id": 7,
+      "name": "Hyra",
+      "amount_cents": 115000
+    },
+    {
+      "id": 4,
+      "category_id": 8,
+      "name": "El och bredband",
+      "amount_cents": 14000
+    },
+    {
+      "id": 5,
+      "category_id": 9,
+      "name": "Veckohandling",
+      "amount_cents": 22000
+    },
+    {
+      "id": 6,
+      "category_id": 9,
+      "name": "Storhandling",
+      "amount_cents": 16000
+    },
+    {
+      "id": 7,
+      "category_id": 10,
+      "name": "Luncher",
+      "amount_cents": 9500
+    },
+    {
+      "id": 8,
+      "category_id": 10,
+      "name": "Middag med vänner",
+      "amount_cents": 6500
+    },
+    {
+      "id": 9,
+      "category_id": 5,
+      "name": "Månadskort",
+      "amount_cents": 5500
+    },
+    {
+      "id": 10,
+      "category_id": 6,
+      "name": "Streaming och musik",
+      "amount_cents": 4500
+    },
+    {
+      "id": 11,
+      "category_id": 6,
+      "name": "Klättergym",
+      "amount_cents": 12000
+    },
+    {
+      "id": 12,
+      "category_id": 11,
+      "name": "Apotek",
+      "amount_cents": 7000
+    }
+  ]
+}

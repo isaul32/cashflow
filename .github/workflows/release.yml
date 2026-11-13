@@ -1,18 +1,48 @@
 name: Release
 
-# Pushing a tag like v0.1.0 builds the installer and the portable zip and
-# publishes a GitHub release. "Run workflow" builds the same files as
-# downloadable workflow artifacts without publishing anything.
+# Pushing a tag like v0.1.0 builds every package and publishes a GitHub release.
+# "Run workflow" builds the same files as downloadable workflow artifacts
+# without publishing anything.
+#
+# Every file is published twice: with the version in its name, and under a fixed
+# name (cashflow-windows-x64-setup.exe, ...). The fixed names make permanent
+# links possible: https://github.com/<repo>/releases/latest/download/<fixed name>
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from Cargo.toml
+        id: ver
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed -E 's/^version *= *"([^"]+)".*/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Cargo.toml version: $version"
+
+      - name: Check the tag matches Cargo.toml
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [ "v${{ steps.ver.outputs.version }}" != "${{ github.ref_name }}" ]; then
+            echo "::error::Tag ${{ github.ref_name }} does not match Cargo.toml version ${{ steps.ver.outputs.version }}"
+            exit 1
+          fi
+
   windows:
+    needs: meta
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,24 +50,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
-
-      - name: Read version from Cargo.toml
-        id: ver
-        shell: pwsh
-        run: |
-          $line = Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
-          $version = $line.Matches[0].Groups[1].Value
-          "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Cargo.toml version: $version"
-
-      - name: Check the tag matches Cargo.toml
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        run: |
-          if ("v${{ steps.ver.outputs.version }}" -ne "${{ github.ref_name }}") {
-            Write-Error "Tag ${{ github.ref_name }} does not match Cargo.toml version ${{ steps.ver.outputs.version }}"
-            exit 1
-          }
 
       - name: Test
         run: cargo test --locked
@@ -48,7 +60,7 @@ jobs:
       - name: Package portable zip
         shell: pwsh
         run: |
-          $name = "cashflow-${{ steps.ver.outputs.version }}-windows-x64-portable"
+          $name = "cashflow-${{ needs.meta.outputs.version }}-windows-x64-portable"
           New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
           Copy-Item target/release/cashflow.exe "dist/$name/"
           Copy-Item README.md "dist/$name/"
@@ -62,31 +74,121 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DSourceExe=..\target\release\cashflow.exe" installer\cashflow.iss
+          & $iscc "/DAppVersion=${{ needs.meta.outputs.version }}" "/DSourceExe=..\target\release\cashflow.exe" installer\cashflow.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Checksums
-        shell: pwsh
-        working-directory: dist
-        run: |
-          Get-ChildItem -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" } | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
-            "$hash  $($_.Name)"
-          } | Set-Content -Encoding ascii SHA256SUMS.txt
-          Get-Content SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cashflow-${{ steps.ver.outputs.version }}-windows-x64
+          name: package-windows-x64
           path: dist/*
+          if-no-files-found: error
+
+  macos:
+    needs: meta
+    # macos-14 and later runners are Apple Silicon.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build (release)
+        run: cargo build --release --locked
+
+      - name: Package app and disk image
+        run: installer/package-macos.sh "${{ needs.meta.outputs.version }}" target/release/cashflow dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-macos-arm64
+          path: dist/*
+          if-no-files-found: error
+
+  linux:
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config cmake clang curl \
+            libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev libxcb1-dev libxcb-xkb-dev libx11-xcb-dev libvulkan-dev \
+            libssl-dev libzstd-dev libasound2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build (release)
+        run: cargo build --release --locked
+
+      - name: Package .deb and AppImage
+        run: installer/package-linux.sh "${{ needs.meta.outputs.version }}" "${{ matrix.arch }}" target/release/cashflow dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-linux-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [meta, windows, macos, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: packages
+          merge-multiple: true
+
+      - name: Add fixed-name copies and checksums
+        run: |
+          version="${{ needs.meta.outputs.version }}"
+          cd packages
+          # cashflow-0.1.0-windows-x64-setup.exe -> cashflow-windows-x64-setup.exe
+          for f in cashflow-"$version"-*; do
+            cp "$f" "${f/-$version-/-}"
+          done
+          sha256sum cashflow-* > SHA256SUMS.txt
+          ls -l
+          cat SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cashflow-${{ needs.meta.outputs.version }}-all
+          path: packages/*
           if-no-files-found: error
 
       - name: Publish GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" (Get-ChildItem dist -File).FullName `
-            --title "CashFlow ${{ github.ref_name }}" `
+          gh release create "${{ github.ref_name }}" packages/* \
+            --repo "${{ github.repository }}" \
+            --title "CashFlow ${{ github.ref_name }}" \
             --generate-notes

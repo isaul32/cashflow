@@ -1,0 +1,82 @@
+{
+  "items": [
+    {
+      "id": 1,
+      "name": "Gehalt",
+      "kind": "Income",
+      "parent": null,
+      "color": 5025616
+    },
+    {
+      "id": 2,
+      "name": "Freiberuf",
+      "kind": "Income",
+      "parent": null,
+      "color": 9159498
+    },
+    {
+      "id": 3,
+      "name": "Wohnen",
+      "kind": "Expense",
+      "parent": null,
+      "color": 4149685
+    },
+    {
+      "id": 4,
+      "name": "Essen",
+      "kind": "Expense",
+      "parent": null,
+      "color": 16750592
+    },
+    {
+      "id": 5,
+      "name": "Verkehr",
+      "kind": "Expense",
+      "parent": null,
+      "color": 240116
+    },
+    {
+      "id": 6,
+      "name": "Freizeit",
+      "kind": "Expense",
+      "parent": null,
+      "color": 10233776
+    },
+    {
+      "id": 7,
+      "name": "Miete",
+      "kind": "Expense",
+      "parent": 3,
+      "color": 6056896
+    },
+    {
+      "id": 8,
+      "name": "Nebenkosten",
+      "kind": "Expense",
+      "parent": 3,
+      "color": 7964363
+    },
+    {
+      "id": 9,
+      "name": "Lebensmittel",
+      "kind": "Expense",
+      "parent": 4,
+      "color": 16758605
+    },
+    {
+      "id": 10,
+      "name": "Restaurant",
+      "kind": "Expense",
+      "parent": 4,
+      "color": 16747109
+    },
+    {
+      "id": 11,
+      "name": "Gesundheit",
+      "kind": "Expense",
+      "parent": null,
+      "color": 15277667
+    }
+  ],
+  "next_id": 12
+}

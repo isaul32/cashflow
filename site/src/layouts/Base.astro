@@ -1,0 +1,101 @@
+---
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
+import '../styles/global.css';
+import { LANGS, langPath, strings, type Lang } from '../i18n/translations';
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const t = strings[lang];
+
+const site = Astro.site!;
+const url = (path: string) => new URL(path, site).href;
+const canonical = url(langPath(lang));
+const ogImage = url('/og.png');
+
+const locales: Record<Lang, string> = {
+  en: 'en_US',
+  fi: 'fi_FI',
+  sv: 'sv_SE',
+  de: 'de_DE',
+  fr: 'fr_FR',
+  es: 'es_ES',
+};
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'CashFlow',
+  description: t.metaDescription,
+  url: canonical,
+  inLanguage: lang,
+  applicationCategory: 'FinanceApplication',
+  operatingSystem: 'Windows, macOS, Linux',
+  image: ogImage,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+  license: 'https://github.com/isaul32/cashflow/blob/main/LICENSE',
+  downloadUrl: 'https://github.com/isaul32/cashflow/releases/latest',
+  codeRepository: 'https://github.com/isaul32/cashflow',
+  author: { '@type': 'Person', name: 'Sauli Anto' },
+};
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{t.metaTitle}</title>
+    <meta name="description" content={t.metaDescription} />
+    <link rel="canonical" href={canonical} />
+    {LANGS.map((l) => <link rel="alternate" hreflang={l} href={url(langPath(l))} />)}
+    <link rel="alternate" hreflang="x-default" href={url(langPath('en'))} />
+
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141312" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" href="/icon.png" sizes="512x512" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="CashFlow" />
+    <meta property="og:title" content={t.metaTitle} />
+    <meta property="og:description" content={t.metaDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={locales[lang]} />
+    {LANGS.filter((l) => l !== lang).map((l) => <meta property="og:locale:alternate" content={locales[l]} />)}
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={t.ogAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={t.metaTitle} />
+    <meta name="twitter:description" content={t.metaDescription} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+    {
+      lang === 'en' && (
+        <script is:inline>
+          {`(function(){try{
+  if(localStorage.getItem('cf-lang'))return;
+  var supported=['fi','sv','de','fr','es'];
+  var prefs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language];
+  for(var i=0;i<prefs.length;i++){
+    var p=String(prefs[i]).toLowerCase().slice(0,2);
+    if(p==='en')return;
+    if(supported.indexOf(p)>-1){location.replace('/'+p+'/'+location.hash);return;}
+  }
+}catch(e){}})();`}
+        </script>
+      )
+    }
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

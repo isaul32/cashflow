@@ -1,0 +1,76 @@
+{
+  "entries": [
+    {
+      "id": 1,
+      "category_id": 1,
+      "name": "Palkka",
+      "amount_cents": 320000
+    },
+    {
+      "id": 2,
+      "category_id": 2,
+      "name": "Verkkosivut",
+      "amount_cents": 65000
+    },
+    {
+      "id": 3,
+      "category_id": 7,
+      "name": "Vuokra",
+      "amount_cents": 115000
+    },
+    {
+      "id": 4,
+      "category_id": 8,
+      "name": "Sähkö ja internet",
+      "amount_cents": 14000
+    },
+    {
+      "id": 5,
+      "category_id": 9,
+      "name": "Viikon kauppa",
+      "amount_cents": 22000
+    },
+    {
+      "id": 6,
+      "category_id": 9,
+      "name": "Isot ostokset",
+      "amount_cents": 16000
+    },
+    {
+      "id": 7,
+      "category_id": 10,
+      "name": "Lounaat",
+      "amount_cents": 9500
+    },
+    {
+      "id": 8,
+      "category_id": 10,
+      "name": "Illallinen ystävien kanssa",
+      "amount_cents": 6500
+    },
+    {
+      "id": 9,
+      "category_id": 5,
+      "name": "Kuukausilippu",
+      "amount_cents": 5500
+    },
+    {
+      "id": 10,
+      "category_id": 6,
+      "name": "Suoratoisto ja musiikki",
+      "amount_cents": 4500
+    },
+    {
+      "id": 11,
+      "category_id": 6,
+      "name": "Kiipeilysali",
+      "amount_cents": 12000
+    },
+    {
+      "id": 12,
+      "category_id": 11,
+      "name": "Apteekki",
+      "amount_cents": 7000
+    }
+  ]
+}

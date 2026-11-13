@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=CashFlow
+GenericName=Income and expense tracker
+Comment=Track monthly income and expenses as a Sankey chart
+Exec=cashflow
+Icon=cashflow
+Terminal=false
+Categories=Office;Finance;
+Keywords=budget;money;finance;sankey;expenses;income;

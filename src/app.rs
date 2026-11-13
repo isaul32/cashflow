@@ -5,7 +5,7 @@ use gpui_kit::component::chart::SankeyChart;
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::plot::shape::{SankeyAlign, SankeyLink};
 use gpui_kit::assets::IconName;
-use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
+use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, Theme, ThemeMode, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
@@ -107,7 +107,11 @@ fn id_of(prefix: &str, id: u64) -> SharedString {
 impl CashFlowApp {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let storage = Storage::default_location();
-        let month = MonthKey::current();
+        // Developer overrides, used by site/tools/screenshots.ps1 to capture screenshots.
+        let month = std::env::var("CASHFLOW_MONTH")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(MonthKey::current);
         let system = SystemLocale::detect();
         let mut warnings: Vec<String> = Vec::new();
         let mut settings = Settings::default();
@@ -196,6 +200,10 @@ impl CashFlowApp {
             _subs: subs,
         };
         app.refresh();
+        if let Ok(theme) = std::env::var("CASHFLOW_THEME") {
+            let mode = if theme == "dark" { ThemeMode::Dark } else { ThemeMode::Light };
+            Theme::change(mode, Some(window), cx);
+        }
         app
     }
 

@@ -1,0 +1,21 @@
+# Stable download links used by the site.
+#
+# Until a release made by the current release workflow exists, everything points at
+# the latest release page. Then change each target to
+#   https://github.com/isaul32/cashflow/releases/latest/download/<fixed name>
+# using these fixed names (the workflow publishes them next to the versioned files):
+#   windows-installer     cashflow-windows-x64-setup.exe
+#   windows-portable      cashflow-windows-x64-portable.zip
+#   macos                 cashflow-macos-arm64.dmg
+#   linux-appimage-x64    cashflow-linux-x64.AppImage
+#   linux-appimage-arm64  cashflow-linux-arm64.AppImage
+#   linux-deb-x64         cashflow-linux-x64.deb
+#   linux-deb-arm64       cashflow-linux-arm64.deb
+
+/download/windows-installer     https://github.com/isaul32/cashflow/releases/latest  302
+/download/windows-portable      https://github.com/isaul32/cashflow/releases/latest  302
+/download/macos                 https://github.com/isaul32/cashflow/releases/latest  302
+/download/linux-appimage-x64    https://github.com/isaul32/cashflow/releases/latest  302
+/download/linux-appimage-arm64  https://github.com/isaul32/cashflow/releases/latest  302
+/download/linux-deb-x64         https://github.com/isaul32/cashflow/releases/latest  302
+/download/linux-deb-arm64       https://github.com/isaul32/cashflow/releases/latest  302

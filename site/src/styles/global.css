@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #fafaf9;
   --surface: #ffffff;
   --surface-2: #f5f5f4;
@@ -18,8 +18,10 @@
   --banner-border: #a7f3d0;
 }
 
+/* Dark: either the system preference (unless light is forced) or an explicit choice. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
     --bg: #141312;
     --surface: #1c1a19;
     --surface-2: #262321;
@@ -37,6 +39,25 @@
     --banner: #0f2a27;
     --banner-border: #134e48;
   }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #141312;
+  --surface: #1c1a19;
+  --surface-2: #262321;
+  --border: #2e2b29;
+  --border-strong: #44403c;
+  --text: #f5f5f4;
+  --text-2: #d6d3d1;
+  --muted: #b4aea9;
+  --faint: #a8a29e;
+  --accent: #0f766e;
+  --accent-hover: #14877d;
+  --link: #5eead4;
+  --code: #262321;
+  --shadow: rgba(0, 0, 0, 0.6);
+  --banner: #0f2a27;
+  --banner-border: #134e48;
 }
 
 *,
@@ -494,4 +515,55 @@ section.block h2 {
 .footer-credits a {
   color: var(--faint);
   text-decoration: underline;
+}
+
+/* Screenshot: both variants are in the page, CSS shows the one for the active theme. */
+.shot .shot-dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .shot .shot-light {
+    display: none;
+  }
+  :root:not([data-theme='light']) .shot .shot-dark {
+    display: block;
+  }
+}
+:root[data-theme='dark'] .shot .shot-light {
+  display: none;
+}
+:root[data-theme='dark'] .shot .shot-dark {
+  display: block;
+}
+
+/* Theme switcher */
+.themeswitch {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.themeswitch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.themeswitch button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.themeswitch button[aria-pressed='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }

@@ -34,7 +34,8 @@ const srcset = async (src: ImageMetadata) =>
   ).join(', ');
 const lightSet = await srcset(shotLight);
 const darkSet = await srcset(shotDark);
-const fallback = await getImage({ src: shotLight, format: 'webp', width: 1366 });
+const fallbackLight = await getImage({ src: shotLight, format: 'webp', width: 1366 });
+const fallbackDark = await getImage({ src: shotDark, format: 'webp', width: 1366 });
 const shotSizes = '(min-width: 1080px) 1032px, calc(100vw - 48px)';
 
 // Download links go through /download/* (see public/_redirects).
@@ -107,6 +108,17 @@ const clientData = {
       CashFlow
     </a>
     <div class="nav-right">
+      <div class="themeswitch" role="group" aria-label={t.themeLabel}>
+        <button type="button" data-theme-choice="system" aria-pressed="true" aria-label={t.themeSystem} title={t.themeSystem}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg>
+        </button>
+        <button type="button" data-theme-choice="light" aria-pressed="false" aria-label={t.themeLight} title={t.themeLight}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+        </button>
+        <button type="button" data-theme-choice="dark" aria-pressed="false" aria-label={t.themeDark} title={t.themeDark}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"></path></svg>
+        </button>
+      </div>
       <nav aria-label={t.languageLabel}>
         <details class="langmenu">
           <summary class="langbtn">
@@ -150,18 +162,26 @@ const clientData = {
     </header>
 
     <div class="wrap shot">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset={darkSet} sizes={shotSizes} type="image/webp" />
-        <img
-          src={fallback.src}
-          srcset={lightSet}
-          sizes={shotSizes}
-          width="1366"
-          height="893"
-          alt={t.screenshotAlt}
-          fetchpriority="high"
-        />
-      </picture>
+      <img
+        class="shot-light"
+        src={fallbackLight.src}
+        srcset={lightSet}
+        sizes={shotSizes}
+        width="1366"
+        height="893"
+        alt={t.screenshotAlt}
+        loading="lazy"
+      />
+      <img
+        class="shot-dark"
+        src={fallbackDark.src}
+        srcset={darkSet}
+        sizes={shotSizes}
+        width="1366"
+        height="893"
+        alt={t.screenshotAlt}
+        loading="lazy"
+      />
     </div>
 
     <section id="features" class="wrap block">
@@ -269,6 +289,28 @@ const clientData = {
         } catch {}
       },
     };
+
+    // Theme: system (default), light or dark. The head script applies a stored choice before paint.
+    const themeButtons = document.querySelectorAll<HTMLButtonElement>('[data-theme-choice]');
+    function showTheme(choice: string) {
+      themeButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeChoice === choice)));
+    }
+    showTheme(store.get('cf-theme') === 'light' || store.get('cf-theme') === 'dark' ? store.get('cf-theme')! : 'system');
+    themeButtons.forEach((b) =>
+      b.addEventListener('click', () => {
+        const choice = b.dataset.themeChoice!;
+        if (choice === 'system') {
+          document.documentElement.removeAttribute('data-theme');
+          try {
+            localStorage.removeItem('cf-theme');
+          } catch {}
+        } else {
+          document.documentElement.setAttribute('data-theme', choice);
+          store.set('cf-theme', choice);
+        }
+        showTheme(choice);
+      }),
+    );
 
     // Remember an explicit language choice so we never override it.
     document.querySelectorAll<HTMLAnchorElement>('[data-set-lang]').forEach((a) => {

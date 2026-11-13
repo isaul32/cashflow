@@ -62,6 +62,10 @@ export interface Strings {
   builtSite: string;
   licensed: string;
   languageLabel: string;
+  themeLabel: string;
+  themeSystem: string;
+  themeLight: string;
+  themeDark: string;
   bannerText: string;
   bannerSwitch: string;
   dismiss: string;
@@ -132,6 +136,10 @@ export const strings: Record<Lang, Strings> = {
     builtSite: 'Site built with',
     licensed: 'MIT licensed.',
     languageLabel: 'Language',
+    themeLabel: 'Theme',
+    themeSystem: 'System',
+    themeLight: 'Light',
+    themeDark: 'Dark',
     bannerText: 'This page is also available in English.',
     bannerSwitch: 'Switch to English',
     dismiss: 'Dismiss',
@@ -200,6 +208,10 @@ export const strings: Record<Lang, Strings> = {
     builtSite: 'Sivusto tehty työkalulla',
     licensed: 'MIT-lisenssi.',
     languageLabel: 'Kieli',
+    themeLabel: 'Teema',
+    themeSystem: 'Järjestelmä',
+    themeLight: 'Vaalea',
+    themeDark: 'Tumma',
     bannerText: 'Tämä sivu on saatavilla myös suomeksi.',
     bannerSwitch: 'Vaihda suomeen',
     dismiss: 'Sulje',
@@ -268,6 +280,10 @@ export const strings: Record<Lang, Strings> = {
     builtSite: 'Webbplatsen är byggd med',
     licensed: 'MIT-licens.',
     languageLabel: 'Språk',
+    themeLabel: 'Tema',
+    themeSystem: 'System',
+    themeLight: 'Ljust',
+    themeDark: 'Mörkt',
     bannerText: 'Den här sidan finns även på svenska.',
     bannerSwitch: 'Byt till svenska',
     dismiss: 'Stäng',
@@ -336,6 +352,10 @@ export const strings: Record<Lang, Strings> = {
     builtSite: 'Website gebaut mit',
     licensed: 'MIT-Lizenz.',
     languageLabel: 'Sprache',
+    themeLabel: 'Darstellung',
+    themeSystem: 'System',
+    themeLight: 'Hell',
+    themeDark: 'Dunkel',
     bannerText: 'Diese Seite gibt es auch auf Deutsch.',
     bannerSwitch: 'Auf Deutsch wechseln',
     dismiss: 'Schließen',
@@ -404,6 +424,10 @@ export const strings: Record<Lang, Strings> = {
     builtSite: 'Site développé avec',
     licensed: 'Licence MIT.',
     languageLabel: 'Langue',
+    themeLabel: 'Thème',
+    themeSystem: 'Système',
+    themeLight: 'Clair',
+    themeDark: 'Sombre',
     bannerText: 'Cette page est aussi disponible en français.',
     bannerSwitch: 'Passer en français',
     dismiss: 'Fermer',
@@ -472,6 +496,10 @@ export const strings: Record<Lang, Strings> = {
     builtSite: 'Sitio creado con',
     licensed: 'Licencia MIT.',
     languageLabel: 'Idioma',
+    themeLabel: 'Tema',
+    themeSystem: 'Sistema',
+    themeLight: 'Claro',
+    themeDark: 'Oscuro',
     bannerText: 'Esta página también está disponible en español.',
     bannerSwitch: 'Cambiar a español',
     dismiss: 'Cerrar',

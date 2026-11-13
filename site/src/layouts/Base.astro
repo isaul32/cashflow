@@ -40,6 +40,19 @@ const jsonLd = {
   codeRepository: 'https://github.com/isaul32/cashflow',
   author: { '@type': 'Person', name: 'Sauli Anto' },
 };
+
+// Inline scripts that must run before first paint (kept as strings so Astro does not process them).
+const themeScript = `(function(){try{var t=localStorage.getItem('cf-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
+const redirectScript = `(function(){try{
+  if(localStorage.getItem('cf-lang'))return;
+  var supported=['fi','sv','de','fr','es'];
+  var prefs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language];
+  for(var i=0;i<prefs.length;i++){
+    var p=String(prefs[i]).toLowerCase().slice(0,2);
+    if(p==='en')return;
+    if(supported.indexOf(p)>-1){location.replace('/'+p+'/'+location.hash);return;}
+  }
+}catch(e){}})();`;
 ---
 
 <!doctype html>
@@ -78,22 +91,9 @@ const jsonLd = {
 
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
 
-    {
-      lang === 'en' && (
-        <script is:inline>
-          {`(function(){try{
-  if(localStorage.getItem('cf-lang'))return;
-  var supported=['fi','sv','de','fr','es'];
-  var prefs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language];
-  for(var i=0;i<prefs.length;i++){
-    var p=String(prefs[i]).toLowerCase().slice(0,2);
-    if(p==='en')return;
-    if(supported.indexOf(p)>-1){location.replace('/'+p+'/'+location.hash);return;}
-  }
-}catch(e){}})();`}
-        </script>
-      )
-    }
+    <script is:inline set:html={themeScript}></script>
+
+    {lang === 'en' && <script is:inline set:html={redirectScript} />}
   </head>
   <body>
     <slot />

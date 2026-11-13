@@ -1,4 +1,7 @@
-"""Generates assets/icon.ico: a tiny Sankey diagram on a light rounded square.
+"""Generates the app icon: a tiny Sankey diagram on a rounded square.
+
+  assets/icon.ico, assets/icon.png   light tile (window and taskbar icon, light theme)
+  assets/icon-dark.png               dark tile, used where the UI is dark
 
 Usage: python tools/make_icon.py   (requires Pillow)
 """
@@ -31,7 +34,7 @@ def band(layer: Image.Image, x0, x1, left, right, color, alpha):
     layer.alpha_composite(ribbon)
 
 
-def main() -> None:
+def render(top: tuple, bottom: tuple) -> Image.Image:
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
 
     # Background: vertical gradient clipped to a rounded square.
@@ -39,7 +42,7 @@ def main() -> None:
     px = ImageDraw.Draw(bg)
     for y in range(S):
         t = y / (S - 1)
-        c = (int(255 + (233 - 255) * t), int(255 + (231 - 255) * t), int(254 + (228 - 254) * t), 255)
+        c = tuple(int(a + (b - a) * t) for a, b in zip(top, bottom)) + (255,)
         px.line([(0, y), (S, y)], fill=c)
     mask = Image.new("L", (S, S), 0)
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, S - 1, S - 1], radius=230, fill=255)
@@ -63,11 +66,18 @@ def main() -> None:
     for _, (y0, y1), color in flows:
         d.rectangle([xr0, y0, xr1, y1], fill=color + (255,))
 
+    return img
+
+
+def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    img = render((255, 255, 254), (233, 231, 228))
     sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (24, 24), (16, 16)]
     img.resize((256, 256), Image.LANCZOS).save(OUT, format="ICO", sizes=sizes)
     img.resize((512, 512), Image.LANCZOS).save(OUT.with_suffix(".png"))
-    print("wrote", OUT)
+    dark = render((31, 41, 55), (11, 18, 32))
+    dark.resize((512, 512), Image.LANCZOS).save(OUT.with_name("icon-dark.png"))
+    print("wrote", OUT, "and icon-dark.png")
 
 
 if __name__ == "__main__":

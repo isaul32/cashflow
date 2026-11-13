@@ -24,7 +24,7 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Read version from Cargo.toml
         id: ver
@@ -45,7 +45,7 @@ jobs:
     needs: meta
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -77,7 +77,7 @@ jobs:
           & $iscc "/DAppVersion=${{ needs.meta.outputs.version }}" "/DSourceExe=..\target\release\cashflow.exe" installer\cashflow.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: package-windows-x64
           path: dist/*
@@ -88,7 +88,7 @@ jobs:
     # macos-15 is an Apple Silicon (arm64) runner; the Intel one is macos-15-intel.
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -103,7 +103,7 @@ jobs:
       - name: Package app and disk image
         run: installer/package-macos.sh "${{ needs.meta.outputs.version }}" target/release/cashflow dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: package-macos-arm64
           path: dist/*
@@ -121,7 +121,7 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install system libraries
         run: |
@@ -147,7 +147,7 @@ jobs:
       - name: Package .deb and AppImage
         run: installer/package-linux.sh "${{ needs.meta.outputs.version }}" "${{ matrix.arch }}" target/release/cashflow dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: package-linux-${{ matrix.arch }}
           path: dist/*
@@ -159,7 +159,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: package-*
           path: packages
@@ -177,7 +177,7 @@ jobs:
           ls -l
           cat SHA256SUMS.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cashflow-${{ needs.meta.outputs.version }}-all
           path: packages/*

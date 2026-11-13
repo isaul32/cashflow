@@ -26,6 +26,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$TitleBarPx = 31  # height of the Windows title bar in the captured frame
 # `-File` passes "fi,en" as one string, so accept both forms.
 $Languages = @($Languages | ForEach-Object { $_ -split ',' })
 $Themes = @($Themes | ForEach-Object { $_ -split ',' })
@@ -108,7 +109,11 @@ function Capture([string]$lang, [string]$theme, [string]$target) {
     $g = [Drawing.Graphics]::FromImage($bmp)
     $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
     $g.Dispose()
-    $bmp.Save($target, [Drawing.Imaging.ImageFormat]::Png)
+    # Keep only the app content: drop the OS title bar and the 1 px window border.
+    # The website draws its own generic window frame around the image.
+    $cropped = $bmp.Clone((New-Object Drawing.Rectangle 1, $TitleBarPx, ($bmp.Width - 2), ($bmp.Height - $TitleBarPx - 1)), $bmp.PixelFormat)
+    $cropped.Save($target, [Drawing.Imaging.ImageFormat]::Png)
+    $cropped.Dispose()
     $bmp.Dispose()
     Write-Host "  $target"
   }

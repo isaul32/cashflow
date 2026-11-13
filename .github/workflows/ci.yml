@@ -32,7 +32,7 @@ jobs:
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install system libraries
         if: startsWith(matrix.os, 'ubuntu')

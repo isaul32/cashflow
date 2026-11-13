@@ -1,6 +1,7 @@
 ---
 import { Image, getImage } from 'astro:assets';
 import iconImg from '../assets/icon.png';
+import iconDarkImg from '../assets/icon-dark.png';
 import Base from '../layouts/Base.astro';
 import { LANGS, LANG_NAMES, langPath, strings, type Lang } from '../i18n/translations';
 
@@ -104,7 +105,8 @@ const clientData = {
 
   <div class="wrap nav">
     <a class="brand" href={langPath(lang)}>
-      <Image src={iconImg} alt="" width={30} height={30} />
+      <Image class="on-light" src={iconImg} alt="" width={30} height={30} />
+      <Image class="on-dark" src={iconDarkImg} alt="" width={30} height={30} />
       CashFlow
     </a>
     <div class="nav-right">
@@ -162,26 +164,29 @@ const clientData = {
     </header>
 
     <div class="wrap shot">
-      <img
-        class="shot-light"
-        src={fallbackLight.src}
-        srcset={lightSet}
-        sizes={shotSizes}
-        width="1366"
-        height="893"
-        alt={t.screenshotAlt}
-        loading="lazy"
-      />
-      <img
-        class="shot-dark"
-        src={fallbackDark.src}
-        srcset={darkSet}
-        sizes={shotSizes}
-        width="1366"
-        height="893"
-        alt={t.screenshotAlt}
-        loading="lazy"
-      />
+      <div class="window">
+        <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
+        <img
+          class="on-light"
+          src={fallbackLight.src}
+          srcset={lightSet}
+          sizes={shotSizes}
+          width={shotLight.width}
+          height={shotLight.height}
+          alt={t.screenshotAlt}
+          loading="lazy"
+        />
+        <img
+          class="on-dark"
+          src={fallbackDark.src}
+          srcset={darkSet}
+          sizes={shotSizes}
+          width={shotDark.width}
+          height={shotDark.height}
+          alt={t.screenshotAlt}
+          loading="lazy"
+        />
+      </div>
     </div>
 
     <section id="features" class="wrap block">

@@ -148,7 +148,7 @@ impl CashFlowApp {
             .items_center()
             .px_2()
             .pb_4()
-            .child(img(self.logo.clone()).size_9().flex_shrink_0())
+            .child(img(self.logo_for(cx)).size_9().flex_shrink_0())
             .child(
                 v_flex()
                     .flex_1()
@@ -916,7 +916,7 @@ impl CashFlowApp {
                         h_flex()
                             .gap_4()
                             .items_center()
-                            .child(img(self.logo.clone()).size_16().flex_shrink_0())
+                            .child(img(self.logo_for(cx)).size_16().flex_shrink_0())
                             .child(
                                 v_flex()
                                     .child(div().text_xl().font_weight(FontWeight::SEMIBOLD).child("CashFlow"))

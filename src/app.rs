@@ -53,6 +53,8 @@ pub struct CashFlowApp {
     lc: Locale,
     /// App logo shown in the sidebar (same artwork as the window icon).
     logo: Arc<Image>,
+    /// Same logo on a dark tile, shown when the theme is dark.
+    logo_dark: Arc<Image>,
     total_in: Entity<InputState>,
     savings_in: Entity<InputState>,
     deficit_in: Entity<InputState>,
@@ -190,6 +192,10 @@ impl CashFlowApp {
                 ImageFormat::Png,
                 include_bytes!("../assets/icon.png").to_vec(),
             )),
+            logo_dark: Arc::new(Image::from_bytes(
+                ImageFormat::Png,
+                include_bytes!("../assets/icon-dark.png").to_vec(),
+            )),
             total_in,
             savings_in,
             deficit_in,
@@ -225,6 +231,11 @@ impl CashFlowApp {
             Theme::change(mode, Some(window), cx);
         }
         app
+    }
+
+    /// The logo variant that suits the current theme.
+    fn logo_for(&self, cx: &App) -> Arc<Image> {
+        if cx.theme().is_dark() { self.logo_dark.clone() } else { self.logo.clone() }
     }
 
     // ---- language ----

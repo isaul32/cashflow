@@ -249,16 +249,84 @@ impl std::str::FromStr for MonthKey {
     }
 }
 
-/// Parses a user-typed amount ("12", "12.5", "12,50") into cents.
-/// Returns `None` for empty, non-numeric, non-positive or absurdly large input.
-pub fn parse_amount_cents(input: &str) -> Option<i64> {
-    // Spaces (also the no-break ones used as thousands separators) are ignored.
-    let cleaned: String = input.chars().filter(|c| !c.is_whitespace()).collect();
-    let v: f64 = cleaned.replace(',', ".").parse().ok()?;
-    if !v.is_finite() || v <= 0.0 || v > 1.0e9 {
+/// True if `text` is digits grouped in threes by `mark`: "1,234" or "12,345,678".
+fn is_grouped(text: &str, mark: char) -> bool {
+    let parts: Vec<&str> = text.split(mark).collect();
+    parts.len() >= 2
+        && (1..=3).contains(&parts[0].len())
+        && parts[1..].iter().all(|p| p.len() == 3)
+        && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// Parses a user-typed amount into cents. `decimal` is the decimal mark of the
+/// reader's number format ('.' or ','); the other of the two is the grouping mark.
+///
+/// Reads what people actually type:
+/// - spaces (also no-break ones) and apostrophes (Swiss) are ignored,
+/// - with both marks the last one is the decimal mark: "1,234.50" and "1.234,50",
+/// - a lone `decimal` mark is a decimal: "12.50" in English, "12,50" in Finnish,
+/// - a lone other mark that groups digits in threes is a grouping: "1,234" in
+///   English means 1234, not 1.23; otherwise it is read as a decimal ("12,5").
+///
+/// More than two decimals, signs, letters, zero and absurdly large amounts give
+/// `None`, so a typo is reported instead of being rounded silently.
+pub fn parse_amount_cents(input: &str, decimal: char) -> Option<i64> {
+    let s: String = input
+        .chars()
+        .filter(|c| !c.is_whitespace() && !matches!(c, '\'' | '’'))
+        .collect();
+    if s.is_empty() || !s.chars().all(|c| c.is_ascii_digit() || c == ',' || c == '.') {
         return None;
     }
-    Some((v * 100.0).round() as i64)
+    let other = if decimal == '.' { ',' } else { '.' };
+    let (decimals, others) = (s.matches(decimal).count(), s.matches(other).count());
+
+    // (whole part, fraction digits, whether a decimal mark was used)
+    let (whole, fraction, has_decimal_mark): (&str, &str, bool) = if decimals > 0 && others > 0 {
+        // Both marks: the last one is the decimal mark and must appear once.
+        let last = s.rfind(['.', ','])?;
+        let mark = s[last..].chars().next()?;
+        let (whole, rest) = s.split_at(last);
+        let grouping = if mark == '.' { ',' } else { '.' };
+        if whole.contains(mark) || !is_grouped(whole, grouping) {
+            return None;
+        }
+        (whole, &rest[1..], true)
+    } else if decimals > 0 {
+        if decimals > 1 {
+            return None;
+        }
+        let (whole, fraction) = s.split_once(decimal)?;
+        (whole, fraction, true)
+    } else if others > 0 {
+        if is_grouped(&s, other) {
+            (s.as_str(), "", false)
+        } else if others == 1 {
+            let (whole, fraction) = s.split_once(other)?;
+            (whole, fraction, true)
+        } else {
+            return None;
+        }
+    } else {
+        (s.as_str(), "", false)
+    };
+
+    // A decimal mark must be followed by one or two digits ("12," and "12.345" are typos).
+    if has_decimal_mark && !(1..=2).contains(&fraction.len()) {
+        return None;
+    }
+    let whole_digits: String = whole.chars().filter(char::is_ascii_digit).collect();
+    if whole_digits.len() > 10 {
+        return None;
+    }
+    let whole_value: i64 = if whole_digits.is_empty() { 0 } else { whole_digits.parse().ok()? };
+    let fraction_value: i64 = match fraction.len() {
+        0 => 0,
+        1 => fraction.parse::<i64>().ok()? * 10,
+        _ => fraction.parse().ok()?,
+    };
+    let cents = whole_value * 100 + fraction_value;
+    (cents > 0 && whole_value <= 1_000_000_000).then_some(cents)
 }
 
 #[cfg(test)]
@@ -307,17 +375,47 @@ mod tests {
 
     #[test]
     fn parses_amounts() {
-        assert_eq!(parse_amount_cents("12"), Some(1200));
-        assert_eq!(parse_amount_cents(" 12,50 "), Some(1250));
-        assert_eq!(parse_amount_cents("1 234,50"), Some(123_450));
-        assert_eq!(parse_amount_cents("1\u{a0}234,50"), Some(123_450));
-        assert_eq!(parse_amount_cents("0.07"), Some(7));
-        assert_eq!(parse_amount_cents("19.99"), Some(1999));
-        assert_eq!(parse_amount_cents(""), None);
-        assert_eq!(parse_amount_cents("abc"), None);
-        assert_eq!(parse_amount_cents("-5"), None);
-        assert_eq!(parse_amount_cents("0"), None);
-        assert_eq!(parse_amount_cents("NaN"), None);
+        // English: '.' is the decimal mark.
+        let en = |s: &str| parse_amount_cents(s, '.');
+        assert_eq!(en("12"), Some(1200));
+        assert_eq!(en("12.5"), Some(1250));
+        assert_eq!(en("12.50"), Some(1250));
+        assert_eq!(en("0.07"), Some(7));
+        assert_eq!(en("19.99"), Some(1999));
+        assert_eq!(en(" 1 234.50 "), Some(123_450));
+        assert_eq!(en("1\u{a0}234.50"), Some(123_450));
+        // "1,234" is a thousand two hundred thirty-four, never 1.23.
+        assert_eq!(en("1,234"), Some(123_400));
+        assert_eq!(en("1,234.50"), Some(123_450));
+        assert_eq!(en("1,234,567.89"), Some(123_456_789));
+        assert_eq!(en("12,5"), Some(1250)); // a lone comma that does not group is a decimal
+        assert_eq!(en("1.234.50"), None);
+        assert_eq!(en("1.234"), None); // three decimals: report instead of rounding
+        assert_eq!(en("12."), None);
+        assert_eq!(en("1.2.3"), None);
+        // Finnish, Swedish, German, French, Spanish: ',' is the decimal mark.
+        let fi = |s: &str| parse_amount_cents(s, ',');
+        assert_eq!(fi("12,50"), Some(1250));
+        assert_eq!(fi("12,5"), Some(1250));
+        assert_eq!(fi(" 12,50 "), Some(1250));
+        assert_eq!(fi("1 234,50"), Some(123_450));
+        assert_eq!(fi("1\u{a0}234,50"), Some(123_450));
+        assert_eq!(fi("1\u{202f}234,50"), Some(123_450));
+        assert_eq!(fi("1.234,50"), Some(123_450));
+        assert_eq!(fi("1.234"), Some(123_400)); // '.' groups here
+        assert_eq!(fi("1.234.567"), Some(123_456_700));
+        assert_eq!(fi("12.50"), Some(1250)); // an English-style decimal still works
+        assert_eq!(fi("1,234.50"), Some(123_450));
+        assert_eq!(fi("1,234"), None); // three decimals
+        assert_eq!(fi("12,"), None);
+        // Swiss apostrophes.
+        assert_eq!(parse_amount_cents("1'234.50", '.'), Some(123_450));
+        assert_eq!(parse_amount_cents("1’234,50", ','), Some(123_450));
+        // Never valid.
+        for bad in ["", "abc", "-5", "+5x", "0", "0,00", "NaN", "1e3", ",", ".", "99999999999"] {
+            assert_eq!(en(bad), None, "{bad:?}");
+            assert_eq!(fi(bad), None, "{bad:?}");
+        }
     }
 
     #[test]

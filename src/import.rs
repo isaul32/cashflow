@@ -138,7 +138,7 @@ pub fn parse_with(text: &str, labels: &Labels, lang: Lang) -> Result<ImportPlan,
             warnings.push(Msg::ImpLineSkippedNodes.format(lang, &[("line", &(n + 1).to_string())]));
             continue;
         }
-        let Some(cents) = parse_amount_cents(&line[lb + 1..rb]) else {
+        let Some(cents) = parse_amount_cents(&line[lb + 1..rb], '.') else {
             warnings.push(Msg::ImpLineSkippedAmount.format(lang, &[("line", &(n + 1).to_string())]));
             continue;
         };

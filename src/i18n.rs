@@ -262,6 +262,11 @@ impl Locale {
         msg.format(self.lang, args)
     }
 
+    /// The decimal mark of the language's number format ('.' or ',').
+    pub fn decimal_mark(&self) -> char {
+        self.lang.separators().1.chars().next().unwrap_or('.')
+    }
+
     /// The minus sign: a real minus (U+2212) in Finnish and Swedish, a hyphen otherwise.
     pub fn minus(&self) -> &'static str {
         match self.lang {
@@ -1102,6 +1107,22 @@ mod tests {
         assert_eq!(loc(Lang::En, Currency::Sek).money(500), "SEK\u{a0}5.00");
         assert_eq!(loc(Lang::Sv, Currency::Sek).money(500), "5,00\u{a0}kr");
         assert_eq!(loc(Lang::De, Currency::Chf).money(500), "5,00\u{a0}CHF");
+    }
+
+    #[test]
+    fn decimal_marks_match_the_formatted_output() {
+        for lang in Lang::ALL {
+            let l = loc(lang, Currency::Eur);
+            let mark = l.decimal_mark();
+            assert!(l.plain_amount(1250).contains(mark), "{lang:?}");
+            // What the app shows can always be typed back in.
+            assert_eq!(crate::model::parse_amount_cents(&l.plain_amount(123_456), mark), Some(123_456), "{lang:?}");
+            assert_eq!(
+                crate::model::parse_amount_cents(&l.money(123_456).replace(l.currency_symbol(), ""), mark),
+                Some(123_456),
+                "{lang:?}"
+            );
+        }
     }
 
     #[test]

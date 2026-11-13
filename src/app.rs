@@ -309,7 +309,7 @@ impl CashFlowApp {
                 format!("cashflow-{}-sankeymatic.txt", self.year),
             ),
             _ => (
-                self.data.to_sankeymatic(&self.lc.month_title(self.month)),
+                self.data.to_sankeymatic(&self.month.to_string()),
                 format!("cashflow-{}-sankeymatic.txt", self.month),
             ),
         }
@@ -524,7 +524,7 @@ impl CashFlowApp {
             cx.notify();
             return;
         };
-        let Some(amount_cents) = parse_amount_cents(self.amount_in.read(cx).value().as_ref())
+        let Some(amount_cents) = parse_amount_cents(self.amount_in.read(cx).value().as_ref(), self.lc.decimal_mark())
         else {
             let example = self.lc.plain_amount(1250);
             self.set_error(self.tf(Msg::ErrPositiveAmount, &[("example", &example)]));

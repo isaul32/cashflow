@@ -203,6 +203,14 @@ impl MonthKey {
         }
     }
 
+    /// Three-letter English month name, e.g. "Mar".
+    pub fn short_name(self) -> &'static str {
+        const NAMES: [&str; 12] = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
+        NAMES[(self.month - 1) as usize]
+    }
+
     /// English month name and year, e.g. "March 2026".
     pub fn title(self) -> String {
         const NAMES: [&str; 12] = [

@@ -8,11 +8,16 @@ Built with Rust and [GPUI Kit](https://gpui-kit.com).
 
 ![CashFlow showing a month of demo data](docs/screenshot.png)
 
+The **Year** view adds all months of a year together and lets you browse earlier years:
+
+![The yearly view](docs/screenshot-year.png)
+
 ## Features
 
 - Add, edit and delete income and expense entries per month
 - Your own categories with colors and optional sub-categories (the chart gains a level per nesting)
 - Savings or deficit shown automatically
+- Yearly view: all months of a year in one Sankey chart, a per-month breakdown, and previous years one click away
 - Automatic saving, plain JSON files
 - Light and dark theme
 
@@ -40,8 +45,8 @@ Verify downloads with `SHA256SUMS.txt`.
 
 ## Try it with demo data
 
-`docs/demo-data/` has a sample month (November 2026) with categories and
-entries, the same data as the screenshot. Point the app at a copy of it:
+`docs/demo-data/` has sample data for September 2025 to November 2026 (categories and
+entries), the same data as the screenshots. Point the app at a copy of it:
 
 ```bash
 cp -r docs/demo-data /tmp/cashflow-demo

@@ -55,7 +55,6 @@ impl Storage {
         directories::ProjectDirs::from("", "", "budget").map(|d| Self::new(d.data_dir()))
     }
 
-    #[cfg(test)]
     pub fn dir(&self) -> &Path {
         &self.dir
     }

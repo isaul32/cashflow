@@ -1,0 +1,58 @@
+{
+  "entries": [
+    {
+      "id": 1,
+      "category_id": 1,
+      "name": "Monthly salary",
+      "amount_cents": 335000
+    },
+    {
+      "id": 2,
+      "category_id": 7,
+      "name": "Rent",
+      "amount_cents": 115000
+    },
+    {
+      "id": 3,
+      "category_id": 8,
+      "name": "Electricity and internet",
+      "amount_cents": 9000
+    },
+    {
+      "id": 4,
+      "category_id": 9,
+      "name": "Weekly groceries",
+      "amount_cents": 20000
+    },
+    {
+      "id": 5,
+      "category_id": 9,
+      "name": "Stock-up shop",
+      "amount_cents": 20000
+    },
+    {
+      "id": 6,
+      "category_id": 10,
+      "name": "Lunches",
+      "amount_cents": 6700
+    },
+    {
+      "id": 7,
+      "category_id": 10,
+      "name": "Dinner with friends",
+      "amount_cents": 6800
+    },
+    {
+      "id": 8,
+      "category_id": 5,
+      "name": "Monthly ticket",
+      "amount_cents": 5500
+    },
+    {
+      "id": 9,
+      "category_id": 6,
+      "name": "Hobbies and subscriptions",
+      "amount_cents": 21000
+    }
+  ]
+}

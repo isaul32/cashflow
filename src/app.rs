@@ -4,7 +4,8 @@ use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::chart::SankeyChart;
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::plot::shape::{SankeyAlign, SankeyLink};
-use gpui_kit::component::{ActiveTheme as _, Sizable as _, h_flex, v_flex};
+use gpui_kit::assets::IconName;
+use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
@@ -16,6 +17,7 @@ use crate::model::{Categories, CategoryId, Entry, Kind, MonthKey, parse_amount_c
 use crate::sankey::{self, FlowNode, SankeyData};
 use crate::settings::{Labels, Settings};
 use crate::storage::{MonthData, Storage};
+use crate::year::{self, YearSummary};
 
 const PALETTE: [u32; 10] = [
     0x3F51B5, 0xFF9800, 0x03A9F4, 0x9C27B0, 0xE91E63, 0x4CAF50, 0x795548, 0x00BCD4, 0xCDDC39,
@@ -25,8 +27,10 @@ const PALETTE: [u32; 10] = [
 #[derive(Clone, Copy, PartialEq)]
 enum Page {
     Overview,
+    Year,
     Categories,
     Settings,
+    About,
 }
 
 pub struct CashFlowApp {
@@ -61,6 +65,9 @@ pub struct CashFlowApp {
     error: Option<SharedString>,
     /// True right after the chart text was copied; cleared when data changes.
     copied: bool,
+    /// The year shown on the Year page and its aggregated data.
+    year: i32,
+    year_summary: YearSummary,
     /// A parsed SankeyMATIC import waiting for the user to confirm.
     pending_import: Option<ImportPlan>,
     /// A neutral success message (saved a file, imported entries).
@@ -180,6 +187,8 @@ impl CashFlowApp {
             error: (!warnings.is_empty()).then(|| warnings.join("
 ").into()),
             copied: false,
+            year: month.year,
+            year_summary: YearSummary::default(),
             pending_import: None,
             notice: None,
             _subs: subs,
@@ -191,6 +200,54 @@ impl CashFlowApp {
     fn refresh(&mut self) {
         self.copied = false;
         self.data = sankey::build_with(&self.cats, &self.entries, &self.settings.labels);
+        self.refresh_year();
+    }
+
+    /// Re-reads the months of the shown year. The current month comes from
+    /// memory, the others from disk.
+    fn refresh_year(&mut self) {
+        let months: Vec<Vec<Entry>> = (1..=12u8)
+            .map(|m| {
+                let key = MonthKey { year: self.year, month: m };
+                if key == self.month {
+                    self.entries.clone()
+                } else {
+                    self.storage
+                        .as_ref()
+                        .map(|st| st.load_month(key).value.entries)
+                        .unwrap_or_default()
+                }
+            })
+            .collect();
+        self.year_summary = year::summarize(self.year, &self.cats, &months, &self.settings.labels);
+    }
+
+    fn switch_year(&mut self, year: i32, cx: &mut Context<Self>) {
+        self.year = year;
+        self.refresh_year();
+        self.copied = false;
+        cx.notify();
+    }
+
+    /// Jumps from the Year page to the Overview of one month.
+    fn open_month(&mut self, month: MonthKey, window: &mut Window, cx: &mut Context<Self>) {
+        self.page = Page::Overview;
+        self.switch_month(month, window, cx);
+        cx.notify();
+    }
+
+    /// SankeyMATIC text and suggested file name for whatever chart is on screen.
+    fn export_payload(&self) -> (String, String) {
+        match self.page {
+            Page::Year => (
+                self.year_summary.data.to_sankeymatic(&self.year.to_string()),
+                format!("cashflow-{}-sankeymatic.txt", self.year),
+            ),
+            _ => (
+                self.data.to_sankeymatic(&self.month.title()),
+                format!("cashflow-{}-sankeymatic.txt", self.month),
+            ),
+        }
     }
 
     /// Rebuilds the chart and writes the current state to disk.
@@ -222,7 +279,7 @@ impl CashFlowApp {
     }
 
     fn copy_sankeymatic(&mut self, cx: &mut Context<Self>) {
-        let text = self.data.to_sankeymatic(&self.month.title());
+        let (text, _) = self.export_payload();
         cx.write_to_clipboard(ClipboardItem::new_string(text));
         self.copied = true;
         cx.notify();
@@ -274,11 +331,10 @@ impl CashFlowApp {
     // ---- SankeyMATIC export / import ----
 
     fn save_sankeymatic_file(&mut self, cx: &mut Context<Self>) {
-        let text = self.data.to_sankeymatic(&self.month.title());
+        let (text, name) = self.export_payload();
         let dir: PathBuf = directories::UserDirs::new()
             .and_then(|d| d.document_dir().map(|p| p.to_path_buf()))
             .unwrap_or_default();
-        let name = format!("cashflow-{}-sankeymatic.txt", self.month);
         let rx = cx.prompt_for_new_path(&dir, Some(&name));
         cx.spawn(async move |this, cx| {
             let Ok(Ok(Some(path))) = rx.await else { return };

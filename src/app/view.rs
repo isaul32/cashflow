@@ -112,7 +112,7 @@ impl CashFlowApp {
     // ---- shell ----
 
     fn sidebar(&self, p: Pal, dark: bool, cx: &mut Context<Self>) -> impl IntoElement {
-        let nav = |page: Page, glyph: &'static str, label: &'static str, cx: &mut Context<Self>| {
+        let nav = |page: Page, icon: IconName, label: &'static str, cx: &mut Context<Self>| {
             let active = self.page == page;
             div()
                 .id(label)
@@ -130,11 +130,15 @@ impl CashFlowApp {
                         .text_color(p.accent_fg)
                         .font_weight(FontWeight::SEMIBOLD)
                 })
-                .child(div().w_4().text_center().child(glyph))
+                .child(Icon::new(icon).size_4())
                 .child(label)
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.page = page;
                     this.error = None;
+                    if page == Page::Year {
+                        this.year = this.month.year;
+                        this.refresh_year();
+                    }
                     cx.notify();
                 }))
         };
@@ -161,15 +165,18 @@ impl CashFlowApp {
             .border_r_1()
             .border_color(p.sidebar_border)
             .child(brand)
-            .child(nav(Page::Overview, "◎", "Overview", cx))
-            .child(nav(Page::Categories, "◆", "Categories", cx))
-            .child(nav(Page::Settings, "⚙", "Settings", cx))
+            .child(nav(Page::Overview, IconName::LayoutDashboard, "Overview", cx))
+            .child(nav(Page::Year, IconName::CalendarDays, "Year", cx))
+            .child(nav(Page::Categories, IconName::Tags, "Categories", cx))
+            .child(nav(Page::Settings, IconName::Settings, "Settings", cx))
+            .child(nav(Page::About, IconName::Info, "About", cx))
             .child(div().flex_1())
             .child(
                 Button::new("theme-toggle")
                     .ghost()
                     .small()
-                    .label(if dark { "☀  Light mode" } else { "☾  Dark mode" })
+                    .icon(if dark { IconName::Sun } else { IconName::Moon })
+                    .label(if dark { "Light mode" } else { "Dark mode" })
                     .on_click(cx.listener(move |_, _, window, cx| {
                         let mode = if dark { ThemeMode::Light } else { ThemeMode::Dark };
                         Theme::change(mode, Some(window), cx);
@@ -188,10 +195,16 @@ impl CashFlowApp {
     fn header(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let (title, sub) = match self.page {
             Page::Overview => ("Overview", "Where your money comes from and where it goes"),
+            Page::Year => ("Year", "All months of a year added together"),
             Page::Categories => ("Categories", "Organize income and spending your way"),
             Page::Settings => ("Settings", "Customize how the chart is labeled"),
+            Page::About => ("About", "The app, its author and license"),
         };
-        let right = (self.page == Page::Overview).then(|| self.month_nav(p, cx));
+        let right = match self.page {
+            Page::Overview => Some(self.month_nav(p, cx).into_any_element()),
+            Page::Year => Some(self.year_nav(p, cx).into_any_element()),
+            _ => None,
+        };
         h_flex()
             .px_6()
             .py_4()
@@ -220,7 +233,7 @@ impl CashFlowApp {
                     .rounded_lg()
                     .border_1()
                     .border_color(p.border)
-                    .child(Button::new("month-prev").ghost().small().label("◀").on_click(
+                    .child(Button::new("month-prev").ghost().small().icon(IconName::ChevronLeft).on_click(
                         cx.listener(|this, _, window, cx| {
                             this.switch_month(this.month.prev(), window, cx)
                         }),
@@ -233,7 +246,7 @@ impl CashFlowApp {
                             .font_weight(FontWeight::MEDIUM)
                             .child(self.month.title()),
                     )
-                    .child(Button::new("month-next").ghost().small().label("▶").on_click(
+                    .child(Button::new("month-next").ghost().small().icon(IconName::ChevronRight).on_click(
                         cx.listener(|this, _, window, cx| {
                             this.switch_month(this.month.next(), window, cx)
                         }),
@@ -269,7 +282,7 @@ impl CashFlowApp {
                 .text_sm()
                 .text_color(color)
                 .child(div().flex_1().child(msg))
-                .child(Button::new(id).ghost().small().label("✕").on_click(
+                .child(Button::new(id).ghost().small().icon(IconName::X).on_click(
                     cx.listener(|this, _, _, cx| {
                         this.error = None;
                         this.notice = None;
@@ -340,8 +353,15 @@ impl CashFlowApp {
                     .h_full()
                     .gap_4()
                     .children(self.import_panel(p, cx))
-                    .child(self.summary(p))
-                    .child(self.chart_card(p, cx)),
+                    .child(self.summary(&self.data, p))
+                    .child(self.chart_card(
+                        &self.data,
+                        format!("No entries for {}", self.month.title()),
+                        "Add income and expenses on the left to see how your money flows.",
+                        true,
+                        p,
+                        cx,
+                    )),
             )
     }
 
@@ -492,7 +512,7 @@ impl CashFlowApp {
             .child(Button::new(id_of("edit", id)).ghost().small().label("Edit").on_click(
                 cx.listener(move |this, _, window, cx| this.edit_entry(id, window, cx)),
             ))
-            .child(Button::new(id_of("del", id)).ghost().small().label("✕").on_click(
+            .child(Button::new(id_of("del", id)).ghost().small().icon(IconName::X).on_click(
                 cx.listener(move |this, _, window, cx| this.delete_entry(id, window, cx)),
             ))
     }
@@ -568,8 +588,7 @@ impl CashFlowApp {
         )
     }
 
-    fn summary(&self, p: Pal) -> impl IntoElement {
-        let d = &self.data;
+    fn summary(&self, d: &SankeyData, p: Pal) -> impl IntoElement {
         let balance = d.balance_cents();
         let (balance_label, balance_color, balance_note) = if d.income_cents == 0 && d.expense_cents == 0 {
             ("Balance", p.muted_fg, "No data yet".to_string())
@@ -586,20 +605,27 @@ impl CashFlowApp {
             .child(stat_card(balance_label, money(balance.abs()), balance_color, balance_note, p))
     }
 
-    fn chart_card(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
-        let d = &self.data;
+    fn chart_card(
+        &self,
+        d: &SankeyData,
+        empty_title: String,
+        empty_hint: &'static str,
+        allow_import: bool,
+        p: Pal,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let body = if d.is_empty() {
             v_flex()
                 .flex_1()
                 .items_center()
                 .justify_center()
                 .gap_1()
-                .child(div().text_color(p.fg).font_weight(FontWeight::MEDIUM).child(format!("No entries for {}", self.month.title())))
+                .child(div().text_color(p.fg).font_weight(FontWeight::MEDIUM).child(empty_title))
                 .child(
                     div()
                         .text_sm()
                         .text_color(p.muted_fg)
-                        .child("Add income and expenses on the left to see how your money flows."),
+                        .child(empty_hint),
                 )
                 .into_any_element()
         } else {
@@ -652,28 +678,288 @@ impl CashFlowApp {
                                             .tooltip("Save the SankeyMATIC text to a file")
                                             .on_click(cx.listener(|this, _, _, cx| this.save_sankeymatic_file(cx))),
                                     )
-                                    .child(div().w_px().h_5().mx_1().bg(p.border))
+                                    .when(allow_import, |row| row.child(div().w_px().h_5().mx_1().bg(p.border)))
                             })
-                            .child(div().text_xs().text_color(p.muted_fg).child("Import"))
-                            .child(
-                                Button::new("import-paste")
-                                    .outline()
-                                    .small()
-                                    .label("Paste")
-                                    .tooltip("Import SankeyMATIC text from the clipboard")
-                                    .on_click(cx.listener(|this, _, _, cx| this.paste_import(cx))),
-                            )
-                            .child(
-                                Button::new("import-open")
-                                    .outline()
-                                    .small()
-                                    .label("Open .txt")
-                                    .tooltip("Import SankeyMATIC text from a file")
-                                    .on_click(cx.listener(|this, _, _, cx| this.open_import_file(cx))),
-                            ),
+                            .when(allow_import, |row| {
+                                row.child(div().text_xs().text_color(p.muted_fg).child("Import"))
+                                    .child(
+                                        Button::new("import-paste")
+                                            .outline()
+                                            .small()
+                                            .label("Paste")
+                                            .tooltip("Import SankeyMATIC text from the clipboard")
+                                            .on_click(cx.listener(|this, _, _, cx| this.paste_import(cx))),
+                                    )
+                                    .child(
+                                        Button::new("import-open")
+                                            .outline()
+                                            .small()
+                                            .label("Open .txt")
+                                            .tooltip("Import SankeyMATIC text from a file")
+                                            .on_click(cx.listener(|this, _, _, cx| this.open_import_file(cx))),
+                                    )
+                            }),
                     ),
             )
             .child(body)
+    }
+
+    // ---- year ----
+
+    fn year_nav(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+        h_flex()
+            .gap_2()
+            .items_center()
+            .child(
+                h_flex()
+                    .items_center()
+                    .gap_1()
+                    .p_1()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(p.border)
+                    .child(Button::new("year-prev").ghost().small().icon(IconName::ChevronLeft).on_click(
+                        cx.listener(|this, _, _, cx| this.switch_year(this.year - 1, cx)),
+                    ))
+                    .child(
+                        div()
+                            .w(px(100.0))
+                            .text_center()
+                            .text_sm()
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(self.year.to_string()),
+                    )
+                    .child(Button::new("year-next").ghost().small().icon(IconName::ChevronRight).on_click(
+                        cx.listener(|this, _, _, cx| this.switch_year(this.year + 1, cx)),
+                    )),
+            )
+            .when(self.year != MonthKey::current().year, |row| {
+                row.child(Button::new("year-today").outline().small().label("This year").on_click(
+                    cx.listener(|this, _, _, cx| this.switch_year(MonthKey::current().year, cx)),
+                ))
+            })
+    }
+
+    fn year_page(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+        h_flex()
+            .flex_1()
+            .min_h_0()
+            .gap_4()
+            .p_6()
+            .child(
+                v_flex()
+                    .w(px(380.0))
+                    .h_full()
+                    .flex_shrink_0()
+                    .child(self.year_months_card(p, cx)),
+            )
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .gap_4()
+                    .child(self.summary(&self.year_summary.data, p))
+                    .child(self.chart_card(
+                        &self.year_summary.data,
+                        format!("No entries for {}", self.year_summary.year),
+                        "Entries you add on the Overview page are summed up here.",
+                        false,
+                        p,
+                        cx,
+                    )),
+            )
+    }
+
+    /// One row per month with income and expense bars; click to open the month.
+    fn year_months_card(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+        let months = &self.year_summary.months;
+        let max = months
+            .iter()
+            .map(|m| m.income_cents.max(m.expense_cents))
+            .max()
+            .unwrap_or(0)
+            .max(1);
+        let bar = |cents: i64, color: Hsla| {
+            let frac = (cents as f32 / max as f32).clamp(0.0, 1.0);
+            div()
+                .h(px(6.0))
+                .w_full()
+                .rounded_full()
+                .bg(p.muted)
+                .child(div().h_full().rounded_full().bg(color).w(relative(frac)))
+        };
+        let rows: Vec<_> = (1..=12u8)
+            .map(|m| {
+                let t = months[(m - 1) as usize];
+                let key = MonthKey { year: self.year, month: m };
+                let empty = t.entries == 0;
+                let balance = t.balance_cents();
+                let (text, color) = if empty {
+                    ("—".to_string(), p.muted_fg)
+                } else if balance >= 0 {
+                    (format!("+{}", money(balance)), p.success)
+                } else {
+                    (money(balance), p.danger)
+                };
+                h_flex()
+                    .id(id_of("ymonth", m as u64))
+                    .gap_3()
+                    .items_center()
+                    .px_2()
+                    .py_2()
+                    .rounded_md()
+                    .cursor_pointer()
+                    .hover(|d| d.bg(p.muted))
+                    .child(
+                        div()
+                            .w(px(34.0))
+                            .text_sm()
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(if empty { p.muted_fg } else { p.fg })
+                            .child(key.short_name()),
+                    )
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .gap_1()
+                            .child(bar(t.income_cents, p.success))
+                            .child(bar(t.expense_cents, p.danger)),
+                    )
+                    .child(
+                        div()
+                            .w(px(96.0))
+                            .text_right()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(color)
+                            .child(text),
+                    )
+                    .on_click(cx.listener(move |this, _, window, cx| this.open_month(key, window, cx)))
+            })
+            .collect();
+
+        let legend = |color: Hsla, label: &'static str| {
+            h_flex()
+                .gap_1()
+                .items_center()
+                .child(div().size_2().rounded_full().bg(color))
+                .child(div().text_xs().text_color(p.muted_fg).child(label))
+        };
+        card(p)
+            .flex_1()
+            .min_h_0()
+            .gap_2()
+            .child(
+                h_flex()
+                    .justify_between()
+                    .items_center()
+                    .child(heading("By month"))
+                    .child(
+                        h_flex()
+                            .gap_3()
+                            .child(legend(p.success, "Income"))
+                            .child(legend(p.danger, "Expenses")),
+                    ),
+            )
+            .child(div().text_xs().text_color(p.muted_fg).child("Click a month to open it. The number is the balance."))
+            .child(
+                div()
+                    .id("year-months-scroll")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .child(v_flex().gap_1().children(rows)),
+            )
+    }
+
+    // ---- about ----
+
+    fn about_page(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+        let row = |label: &'static str, value: String| {
+            h_flex()
+                .gap_3()
+                .items_start()
+                .child(
+                    div()
+                        .w(px(96.0))
+                        .flex_shrink_0()
+                        .text_sm()
+                        .text_color(p.muted_fg)
+                        .child(label),
+                )
+                .child(div().flex_1().min_w_0().text_sm().child(value))
+        };
+        let repo = env!("CARGO_PKG_REPOSITORY");
+        let data_dir = self
+            .storage
+            .as_ref()
+            .map(|s| s.dir().display().to_string())
+            .unwrap_or_else(|| "not available".to_string());
+
+        h_flex().flex_1().min_h_0().items_start().p_6().child(
+            v_flex().w(px(560.0)).max_h_full().child(
+                card(p)
+                    .gap_4()
+                    .child(
+                        h_flex()
+                            .gap_4()
+                            .items_center()
+                            .child(img(self.logo.clone()).size_16().flex_shrink_0())
+                            .child(
+                                v_flex()
+                                    .child(div().text_xl().font_weight(FontWeight::SEMIBOLD).child("CashFlow"))
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .text_color(p.muted_fg)
+                                            .child(format!("Version {}", env!("CARGO_PKG_VERSION"))),
+                                    ),
+                            ),
+                    )
+                    .child(div().text_sm().child(
+                        "Track your monthly income and expenses and see where the money goes as a \
+                         Sankey chart.",
+                    ))
+                    .child(
+                        v_flex()
+                            .gap_2()
+                            .child(row("Author", env!("CARGO_PKG_AUTHORS").replace(':', ", ")))
+                            .child(row("License", env!("CARGO_PKG_LICENSE").to_string()))
+                            .child(row("Source", repo.to_string()))
+                            .child(row("Data folder", data_dir)),
+                    )
+                    .child(
+                        h_flex().child(
+                            Button::new("open-repo")
+                                .outline()
+                                .small()
+                                .label("Open on GitHub")
+                                .on_click(cx.listener(move |_, _, _, cx| cx.open_url(repo))),
+                        ),
+                    )
+                    .child(
+                        v_flex()
+                            .gap_2()
+                            .child(heading("License"))
+                            .child(
+                                div()
+                                    .id("license-text")
+                                    .max_h(px(200.0))
+                                    .overflow_y_scroll()
+                                    .p_3()
+                                    .rounded_md()
+                                    .bg(p.muted)
+                                    .text_xs()
+                                    .text_color(p.muted_fg)
+                                    .child(include_str!("../../LICENSE").replace("\r\n", "\n")),
+                            ),
+                    )
+                    .child(div().text_xs().text_color(p.muted_fg).child(
+                        "Built with Rust, GPUI and GPUI Kit (Apache-2.0). Icons from Lucide (ISC license).",
+                    )),
+            ),
+        )
     }
 
     // ---- settings ----
@@ -818,7 +1104,7 @@ impl CashFlowApp {
                         .child(Button::new(id_of("catedit", id)).ghost().small().label("Edit").on_click(
                             cx.listener(move |this, _, window, cx| this.edit_category(id, window, cx)),
                         ))
-                        .child(Button::new(id_of("catdel", id)).ghost().small().label("✕").on_click(
+                        .child(Button::new(id_of("catdel", id)).ghost().small().icon(IconName::X).on_click(
                             cx.listener(move |this, _, window, cx| this.delete_category(id, window, cx)),
                         )),
                 );
@@ -856,8 +1142,10 @@ impl Render for CashFlowApp {
         let dark = cx.theme().is_dark();
         let page = match self.page {
             Page::Overview => self.overview(p, cx).into_any_element(),
+            Page::Year => self.year_page(p, cx).into_any_element(),
             Page::Categories => self.categories_page(p, cx).into_any_element(),
             Page::Settings => self.settings_page(p, cx).into_any_element(),
+            Page::About => self.about_page(p, cx).into_any_element(),
         };
         let main = v_flex()
             .flex_1()

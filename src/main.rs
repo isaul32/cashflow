@@ -1,5 +1,9 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// A pure GUI app: never open a console window, in debug builds either.
+#![windows_subsystem = "windows"]
 
+use std::borrow::Cow;
+
+use gpui_kit::assets::{Assets, icon_assets};
 use gpui_kit::*;
 
 mod app;
@@ -8,9 +12,49 @@ mod model;
 mod sankey;
 mod settings;
 mod storage;
+mod year;
+
+// Icons used by the app that are not in the default component bundle.
+icon_assets!(ExtraIcons, [CalendarDays, Tags, X]);
+
+/// The default component icons plus [`ExtraIcons`].
+struct AppAssets;
+
+impl AssetSource for AppAssets {
+    fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
+        if let Some(bytes) = ExtraIcons.load(path)? {
+            return Ok(Some(bytes));
+        }
+        Assets.load(path)
+    }
+
+    fn list(&self, path: &str) -> Result<Vec<SharedString>> {
+        let mut all = Assets.list(path)?;
+        all.extend(ExtraIcons.list(path)?);
+        Ok(all)
+    }
+}
+
+/// Debug builds only: when started from a terminal (`cargo run`), print to that
+/// terminal like a console app would. Without a parent console this does nothing,
+/// so double-clicking the exe never opens a console window.
+#[cfg(all(windows, debug_assertions))]
+fn attach_parent_console() {
+    unsafe extern "system" {
+        fn AttachConsole(process_id: u32) -> i32;
+    }
+    const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
+    // SAFETY: plain Win32 call with a constant argument; failure is harmless.
+    unsafe {
+        AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+}
 
 fn main() {
-    gpui_kit::application().run(|cx| {
+    #[cfg(all(windows, debug_assertions))]
+    attach_parent_console();
+
+    gpui_kit::application().with_assets(AppAssets).run(|cx| {
         gpui_kit::init(cx);
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(

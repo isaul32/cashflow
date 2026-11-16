@@ -71,6 +71,17 @@ pub enum ThemeChoice {
     Dark,
 }
 
+/// What an AI assistant may do through `cashflow --mcp` (see `crate::mcp`). That process reads
+/// these on every request.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct McpSettings {
+    /// Off unless the user turns it on: nothing is offered to an assistant before that.
+    pub enabled: bool,
+    /// Without this the assistant can only read.
+    pub allow_changes: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -83,6 +94,7 @@ pub struct Settings {
     pub theme: Option<ThemeChoice>,
     /// Look for a newer release on GitHub at startup. Off unless the user opts in.
     pub check_updates: bool,
+    pub mcp: McpSettings,
 }
 
 #[cfg(test)]
@@ -125,6 +137,7 @@ mod tests {
         let old: Settings = serde_json::from_str(r#"{"labels":{"total":"X"}}"#).unwrap();
         assert_eq!((old.language, old.currency, old.theme), (None, None, None));
         assert!(!old.check_updates, "update checks must be opt-in");
+        assert!(!old.mcp.enabled && !old.mcp.allow_changes, "the MCP server must be opt-in, and read-only at first");
         let dark: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
         assert_eq!(dark.theme, Some(ThemeChoice::Dark));
     }

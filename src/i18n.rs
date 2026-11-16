@@ -497,12 +497,12 @@ messages! {
         de: "Sicherung und Export", fr: "Sauvegarde et export", es: "Copia de seguridad y exportación",
     }
     BackupHelp {
-        en: "Save all your data in one file and restore it later or on another computer. Settings stay on this computer. The CSV export lists every entry for use in a spreadsheet.",
-        fi: "Tallenna kaikki tietosi yhteen tiedostoon ja palauta ne myöhemmin tai toisella tietokoneella. Asetukset pysyvät tällä tietokoneella. CSV-vienti listaa kaikki merkinnät taulukkolaskentaa varten.",
-        sv: "Spara alla dina uppgifter i en fil och återställ dem senare eller på en annan dator. Inställningarna stannar på den här datorn. CSV-exporten listar alla poster för kalkylblad.",
-        de: "Speichere alle Daten in einer Datei und stelle sie später oder auf einem anderen Computer wieder her. Die Einstellungen bleiben auf diesem Computer. Der CSV-Export listet alle Einträge für Tabellenkalkulationen auf.",
-        fr: "Enregistrez toutes vos données dans un fichier et restaurez-les plus tard ou sur un autre ordinateur. Les réglages restent sur cet ordinateur. L'export CSV liste chaque entrée pour un tableur.",
-        es: "Guarda todos tus datos en un archivo y restáuralos más tarde o en otro ordenador. Los ajustes se quedan en este ordenador. La exportación CSV lista cada movimiento para una hoja de cálculo.",
+        en: "Save all your data in one file to restore later or on another computer, or export every entry as CSV.",
+        fi: "Tallenna kaikki tietosi yhteen tiedostoon palautettavaksi myöhemmin tai toisella tietokoneella, tai vie merkinnät CSV:nä.",
+        sv: "Spara alla uppgifter i en fil för att återställa senare eller på en annan dator, eller exportera alla poster som CSV.",
+        de: "Speichere alle Daten in einer Datei zum späteren Wiederherstellen oder für einen anderen Computer, oder exportiere alle Einträge als CSV.",
+        fr: "Enregistrez toutes vos données dans un fichier à restaurer plus tard ou sur un autre ordinateur, ou exportez les entrées en CSV.",
+        es: "Guarda todos tus datos en un archivo para restaurarlos más tarde o en otro ordenador, o exporta los movimientos como CSV.",
     }
     BackupSave {
         en: "Save backup", fi: "Tallenna varmuuskopio", sv: "Spara säkerhetskopia", de: "Sicherung speichern",
@@ -550,6 +550,45 @@ messages! {
         en: "Restoring failed: {error}", fi: "Palautus epäonnistui: {error}",
         sv: "Återställningen misslyckades: {error}", de: "Wiederherstellung fehlgeschlagen: {error}",
         fr: "La restauration a échoué : {error}", es: "No se pudo restaurar: {error}",
+    }
+    SettingsAdvanced {
+        en: "Advanced", fi: "Lisäasetukset", sv: "Avancerat", de: "Erweitert", fr: "Avancé", es: "Avanzado",
+    }
+    McpTitle {
+        en: "MCP server", fi: "MCP-palvelin", sv: "MCP-server", de: "MCP-Server", fr: "Serveur MCP", es: "Servidor MCP",
+    }
+    McpHelp {
+        en: "Lets an AI assistant read and manage your budget by starting CashFlow in the background, with nothing listening on the network.",
+        fi: "Antaa tekoälyavustajan lukea ja hallita budjettiasi käynnistämällä CashFlow'n taustalle, eikä mikään kuuntele verkossa.",
+        sv: "Låter en AI-assistent läsa och hantera din budget genom att starta CashFlow i bakgrunden, utan att något lyssnar på nätverket.",
+        de: "Erlaubt einem KI-Assistenten, dein Budget zu lesen und zu verwalten, indem er CashFlow im Hintergrund startet, ohne dass etwas im Netzwerk lauscht.",
+        fr: "Permet à un assistant IA de lire et gérer votre budget en lançant CashFlow en arrière-plan, sans rien écouter sur le réseau.",
+        es: "Permite que un asistente de IA lea y gestione tu presupuesto iniciando CashFlow en segundo plano, sin que nada escuche en la red.",
+    }
+    McpConnectHelp {
+        en: "Run the copied command once in a terminal to connect your assistant.",
+        fi: "Aja kopioitu komento kerran terminaalissa yhdistääksesi avustajasi.",
+        sv: "Kör det kopierade kommandot en gång i en terminal för att ansluta din assistent.",
+        de: "Führe den kopierten Befehl einmal in einem Terminal aus, um deinen Assistenten zu verbinden.",
+        fr: "Exécutez la commande copiée une fois dans un terminal pour connecter votre assistant.",
+        es: "Ejecuta una vez el comando copiado en una terminal para conectar a tu asistente.",
+    }
+    McpChanges {
+        en: "Allow changes", fi: "Salli muutokset", sv: "Tillåt ändringar", de: "Änderungen erlauben",
+        fr: "Autoriser les modifications", es: "Permitir cambios",
+    }
+    McpChangesHelp {
+        en: "When off, the assistant can only read your data.", fi: "Kun pois päältä, avustaja voi vain lukea tietojasi.",
+        sv: "När det är av kan assistenten bara läsa dina uppgifter.", de: "Wenn aus, kann der Assistent deine Daten nur lesen.",
+        fr: "Si désactivé, l'assistant ne peut que lire vos données.", es: "Si está desactivado, el asistente solo puede leer tus datos.",
+    }
+    McpCopyCommand {
+        en: "Copy command", fi: "Kopioi komento", sv: "Kopiera kommando", de: "Befehl kopieren",
+        fr: "Copier la commande", es: "Copiar comando",
+    }
+    NoticeCopied {
+        en: "Copied to the clipboard", fi: "Kopioitu leikepöydälle", sv: "Kopierat till urklipp",
+        de: "In die Zwischenablage kopiert", fr: "Copié dans le presse-papiers", es: "Copiado al portapapeles",
     }
     UpdatesTitle {
         en: "Updates", fi: "Päivitykset", sv: "Uppdateringar", de: "Updates", fr: "Mises à jour", es: "Actualizaciones",
@@ -815,12 +854,12 @@ messages! {
         fr: "Libellés du graphique", es: "Etiquetas del gráfico",
     }
     ChartLabelsHelp {
-        en: "Names of the automatic nodes in the money flow chart. They are also used in the SankeyMATIC export and recognized on import.",
-        fi: "Rahavirtakaavion automaattisten solmujen nimet. Niitä käytetään myös SankeyMATIC-viennissä, ja ne tunnistetaan tuonnissa.",
-        sv: "Namn på de automatiska noderna i pengaflödesdiagrammet. De används även i SankeyMATIC-exporten och känns igen vid import.",
-        de: "Namen der automatischen Knoten im Geldflussdiagramm. Sie werden auch beim SankeyMATIC-Export verwendet und beim Import erkannt.",
-        fr: "Noms des nœuds automatiques du graphique. Ils sont aussi utilisés dans l'export SankeyMATIC et reconnus à l'import.",
-        es: "Nombres de los nodos automáticos del gráfico. También se usan en la exportación a SankeyMATIC y se reconocen al importar.",
+        en: "Names of the chart's automatic nodes, also used in the SankeyMATIC export and import.",
+        fi: "Kaavion automaattisten solmujen nimet, joita käytetään myös SankeyMATIC-viennissä ja -tuonnissa.",
+        sv: "Namn på diagrammets automatiska noder, som även används vid SankeyMATIC-export och -import.",
+        de: "Namen der automatischen Knoten des Diagramms, die auch beim SankeyMATIC-Export und -Import gelten.",
+        fr: "Noms des nœuds automatiques du graphique, aussi utilisés pour l'export et l'import SankeyMATIC.",
+        es: "Nombres de los nodos automáticos del gráfico, que también se usan al exportar e importar con SankeyMATIC.",
     }
     LabelTotal {
         en: "Middle node (all income flows in here)", fi: "Keskisolmu (kaikki tulot virtaavat tähän)",
@@ -844,12 +883,12 @@ messages! {
     }
     LanguageTitle { en: "Language", fi: "Kieli", sv: "Språk", de: "Sprache", fr: "Langue", es: "Idioma" }
     LanguageHelp {
-        en: "Dates and numbers follow the language. \"Automatic\" uses your system language.",
-        fi: "Päivämäärät ja luvut noudattavat kieltä. \"Automaattinen\" käyttää järjestelmän kieltä.",
-        sv: "Datum och tal följer språket. \"Automatiskt\" använder systemspråket.",
-        de: "Datum und Zahlen richten sich nach der Sprache. „Automatisch“ verwendet die Systemsprache.",
-        fr: "Les dates et les nombres suivent la langue. « Automatique » utilise la langue du système.",
-        es: "Las fechas y los números siguen el idioma. «Automático» usa el idioma del sistema.",
+        en: "Dates, numbers and the starter categories (until you edit them) follow this language, or your system's when set to Automatic.",
+        fi: "Päivämäärät, luvut ja aloituskategoriat (kunnes muokkaat niitä) noudattavat tätä kieltä, tai järjestelmän kieltä Automaattisella.",
+        sv: "Datum, tal och startkategorierna (tills du ändrar dem) följer detta språk, eller systemets om Automatiskt är valt.",
+        de: "Datum, Zahlen und die Startkategorien (bis du sie änderst) richten sich nach dieser Sprache, bei „Automatisch“ nach der des Systems.",
+        fr: "Les dates, les nombres et les catégories de départ (tant que vous ne les modifiez pas) suivent cette langue, ou celle du système avec « Automatique ».",
+        es: "Las fechas, los números y las categorías iniciales (mientras no las edites) siguen este idioma, o el del sistema con «Automático».",
     }
     Automatic {
         en: "Automatic", fi: "Automaattinen", sv: "Automatiskt", de: "Automatisch", fr: "Automatique",
@@ -857,12 +896,12 @@ messages! {
     }
     CurrencyTitle { en: "Currency", fi: "Valuutta", sv: "Valuta", de: "Währung", fr: "Devise", es: "Moneda" }
     CurrencyHelp {
-        en: "Changes only how amounts are displayed; nothing is converted.",
-        fi: "Muuttaa vain summien esitystapaa; mitään ei muunneta.",
-        sv: "Ändrar bara hur belopp visas; inget räknas om.",
-        de: "Ändert nur die Darstellung der Beträge; es wird nichts umgerechnet.",
-        fr: "Ne change que l'affichage des montants ; rien n'est converti.",
-        es: "Solo cambia cómo se muestran los importes; no se convierte nada.",
+        en: "Changes only how amounts are shown, nothing is converted.",
+        fi: "Muuttaa vain summien esitystapaa, mitään ei muunneta.",
+        sv: "Ändrar bara hur belopp visas, inget räknas om.",
+        de: "Ändert nur die Darstellung der Beträge, nichts wird umgerechnet.",
+        fr: "Ne change que l'affichage des montants, rien n'est converti.",
+        es: "Solo cambia cómo se muestran los importes, no se convierte nada.",
     }
 
     // ---- about page ----

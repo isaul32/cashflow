@@ -62,7 +62,7 @@ impl DataFile {
 }
 
 /// "Parent / Child" for nested categories; an unknown id gives an empty text.
-fn category_path(cats: &Categories, id: CategoryId) -> String {
+pub(crate) fn category_path(cats: &Categories, id: CategoryId) -> String {
     let mut names = Vec::new();
     let mut next = Some(id);
     // The depth limit protects against a damaged file with a parent cycle.

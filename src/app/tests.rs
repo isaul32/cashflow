@@ -15,17 +15,17 @@ use crate::data::DataFile;
 use crate::settings::ThemeChoice;
 
 /// An open window with the app inside it, and the data folder the app writes to.
-struct Env {
-    handle: AnyWindowHandle,
-    app: Entity<CashFlowApp>,
-    st: Storage,
+pub(crate) struct Env {
+    pub(crate) handle: AnyWindowHandle,
+    pub(crate) app: Entity<CashFlowApp>,
+    pub(crate) st: Storage,
 }
 
-fn open(cx: &mut TestAppContext, name: &str, seed: impl FnOnce(&Storage, &Categories)) -> Env {
+pub(crate) fn open(cx: &mut TestAppContext, name: &str, seed: impl FnOnce(&Storage, &Categories)) -> Env {
     open_sized(cx, name, 1360.0, 860.0, seed)
 }
 
-fn open_sized(
+pub(crate) fn open_sized(
     cx: &mut TestAppContext,
     name: &str,
     width: f32,
@@ -66,7 +66,7 @@ fn open_sized(
 
 impl Env {
     /// Runs `f` in the window, after rendering the latest state.
-    fn ui<R>(&self, cx: &mut TestAppContext, f: impl FnOnce(&mut Window, &mut App) -> R) -> R {
+    pub(crate) fn ui<R>(&self, cx: &mut TestAppContext, f: impl FnOnce(&mut Window, &mut App) -> R) -> R {
         cx.update_window(self.handle, |_, window, cx| {
             window.render_frame(cx);
             f(window, cx)
@@ -75,30 +75,30 @@ impl Env {
     }
 
     /// Reads from the app state.
-    fn read<R>(&self, cx: &mut TestAppContext, f: impl FnOnce(&CashFlowApp) -> R) -> R {
+    pub(crate) fn read<R>(&self, cx: &mut TestAppContext, f: impl FnOnce(&CashFlowApp) -> R) -> R {
         cx.read(|cx| f(self.app.read(cx)))
     }
 
     /// Like [`Self::read`], with the app context too (needed to read the text of an input).
-    fn read_inputs<R>(&self, cx: &mut TestAppContext, f: impl FnOnce(&CashFlowApp, &App) -> R) -> R {
+    pub(crate) fn read_inputs<R>(&self, cx: &mut TestAppContext, f: impl FnOnce(&CashFlowApp, &App) -> R) -> R {
         cx.read(|cx| f(self.app.read(cx), cx))
     }
 
     /// Changes the app state directly, for setting up what a test starts from.
-    fn modify(&self, cx: &mut TestAppContext, f: impl FnOnce(&mut CashFlowApp)) {
+    pub(crate) fn modify(&self, cx: &mut TestAppContext, f: impl FnOnce(&mut CashFlowApp)) {
         cx.update(|cx| self.app.update(cx, |app, cx| {
             f(app);
             cx.notify();
         }));
     }
 
-    fn click(&self, cx: &mut TestAppContext, id: impl Into<ElementId>) {
+    pub(crate) fn click(&self, cx: &mut TestAppContext, id: impl Into<ElementId>) {
         let id = id.into();
         self.ui(cx, |window, cx| window.click(id, cx));
     }
 
     /// Replaces the text of the focused-by-click input with `text`.
-    fn type_into(&self, cx: &mut TestAppContext, id: &'static str, text: &str) {
+    pub(crate) fn type_into(&self, cx: &mut TestAppContext, id: &'static str, text: &str) {
         self.ui(cx, |window, cx| {
             window.click(id, cx);
             window.press("secondary-a", cx);
@@ -106,25 +106,25 @@ impl Env {
         });
     }
 
-    fn exists(&self, cx: &mut TestAppContext, id: impl Into<ElementId>) -> bool {
+    pub(crate) fn exists(&self, cx: &mut TestAppContext, id: impl Into<ElementId>) -> bool {
         let id = id.into();
         self.ui(cx, |window, _| window.try_find(id).is_some())
     }
 
-    fn cat(&self, cx: &mut TestAppContext, name: &str) -> CategoryId {
+    pub(crate) fn cat(&self, cx: &mut TestAppContext, name: &str) -> CategoryId {
         self.read(cx, |app| app.cats.items.iter().find(|c| c.name == name).expect("category").id)
     }
 }
 
-fn this_month() -> MonthKey {
+pub(crate) fn this_month() -> MonthKey {
     MonthKey::current()
 }
 
-fn entry(id: u64, category_id: CategoryId, name: &str, cents: i64) -> Entry {
+pub(crate) fn entry(id: u64, category_id: CategoryId, name: &str, cents: i64) -> Entry {
     Entry { id, category_id, name: name.to_string(), amount_cents: cents }
 }
 
-fn category_id(cats: &Categories, name: &str) -> CategoryId {
+pub(crate) fn category_id(cats: &Categories, name: &str) -> CategoryId {
     cats.items.iter().find(|c| c.name == name).expect("category").id
 }
 
@@ -486,6 +486,10 @@ fn changing_the_language_relabels_the_window_and_is_saved(cx: &mut TestAppContex
 fn the_theme_choice_is_applied_and_saved(cx: &mut TestAppContext) {
     let env = open(cx, "theme", |_, _| {});
     env.click(cx, Msg::NavSettings.text(Lang::En));
+    // Under the chart's names and the language, so further down than the window shows.
+    env.ui(cx, |window, cx| {
+        window.scroll("settings-scroll", ScrollDelta::Pixels(point(px(0.), px(-4000.))), cx);
+    });
     assert!(!env.ui(cx, |_, cx| cx.theme().is_dark()));
 
     env.click(cx, "theme-Some(Dark)");
@@ -576,4 +580,186 @@ fn adapts_to_small_and_large_windows(cx: &mut TestAppContext) {
     env.type_into(cx, "entry-amount", "3");
     env.click(cx, "submit");
     env.read(cx, |app| assert_eq!(app.entries.len(), 1));
+}
+
+#[gpui_kit::test]
+fn the_mcp_server_is_off_until_the_user_turns_it_on(cx: &mut TestAppContext) {
+    let env = open(cx, "mcp-card", |_, _| {});
+    env.read(cx, |app| assert!(!app.settings.mcp.enabled && !app.settings.mcp.allow_changes));
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+    assert!(env.exists(cx, "mcp-true") && env.exists(cx, "mcp-false"));
+    assert!(!env.exists(cx, "mcp-changes-true"), "the details are hidden while it is off");
+    assert!(!env.exists(cx, "mcp-copy-command"));
+
+    env.click(cx, "mcp-true");
+    env.read(cx, |app| assert!(app.settings.mcp.enabled && !app.settings.mcp.allow_changes, "read-only at first"));
+    assert!(env.st.load_settings().value.mcp.enabled, "the choice is saved, where the MCP process reads it");
+    assert!(env.exists(cx, "mcp-changes-true") && env.exists(cx, "mcp-copy-command"));
+
+    env.click(cx, "mcp-changes-true");
+    assert!(env.st.load_settings().value.mcp.allow_changes);
+    env.click(cx, "mcp-changes-false");
+    assert!(!env.st.load_settings().value.mcp.allow_changes);
+
+    env.click(cx, "mcp-false");
+    assert!(!env.st.load_settings().value.mcp.enabled);
+    assert!(!env.exists(cx, "mcp-copy-command"));
+}
+
+#[gpui_kit::test]
+fn the_claude_code_command_starts_this_app_in_mcp_mode(cx: &mut TestAppContext) {
+    let env = open(cx, "mcp-command", |_, _| {});
+    env.modify(cx, |app| app.settings.mcp.enabled = true);
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+
+    let command = env.read(cx, |app| app.mcp_command());
+    assert!(command.starts_with("claude mcp add cashflow -- \""), "{command}");
+    assert!(command.ends_with("\" --mcp"), "{command}");
+
+    // The button is further down the page than the window shows.
+    env.ui(cx, |window, cx| {
+        window.scroll("settings-scroll", ScrollDelta::Pixels(point(px(0.), px(-4000.))), cx);
+    });
+    env.click(cx, "mcp-copy-command");
+    env.read(cx, |app| assert!(app.notice.is_some()));
+    let copied = cx.read_from_clipboard().and_then(|item| item.text());
+    assert_eq!(copied, Some(command));
+}
+
+#[gpui_kit::test]
+fn the_window_follows_changes_made_by_another_process(cx: &mut TestAppContext) {
+    // The watcher runs on its own thread, which the deterministic test scheduler only accepts when told.
+    cx.executor().allow_parking();
+    let env = open(cx, "follow", |st, cats| {
+        let food = category_id(cats, "Food");
+        st.save_month(this_month(), &MonthData { entries: vec![entry(1, food, "Lunch", 990)] }).unwrap();
+    });
+    env.read(cx, |app| assert_eq!(app.entries.len(), 1));
+    let food = env.cat(cx, "Food");
+
+    // `cashflow --mcp` is another process with its own storage on the same folder.
+    let assistant = Storage::new(env.st.dir());
+    let mut month_data = assistant.load_month(this_month());
+    month_data.entries.push(entry(month_data.next_entry_id(), food, "From the assistant", 1250));
+    assistant.save_month(this_month(), &month_data).unwrap();
+
+    let mut waited = 0;
+    while env.read(cx, |app| app.entries.len()) < 2 && waited < 400 {
+        cx.run_until_parked();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        waited += 1;
+    }
+    env.read(cx, |app| {
+        assert_eq!(app.entries.len(), 2, "the window reloaded");
+        assert!(app.entries.iter().any(|e| e.name == "From the assistant" && e.amount_cents == 1250));
+    });
+    assert!(env.exists(cx, "edit-2"), "and shows the new entry");
+
+    // A change the window makes itself afterwards keeps the assistant's entry.
+    env.type_into(cx, "entry-amount", "3");
+    env.click(cx, "submit");
+    assert_eq!(Storage::new(env.st.dir()).load_month(this_month()).entries.len(), 3);
+
+    // Settings changed elsewhere (e.g. the language) are applied too.
+    let mut settings = assistant.load_settings().value;
+    settings.language = Some(Lang::Fi);
+    assistant.save_settings(&settings).unwrap();
+    let mut waited = 0;
+    while env.read(cx, |app| app.lc.lang) != Lang::Fi && waited < 400 {
+        cx.run_until_parked();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        waited += 1;
+    }
+    env.read(cx, |app| assert_eq!(app.settings.language, Some(Lang::Fi)));
+    assert!(env.exists(cx, Msg::NavSettings.text(Lang::Fi)), "the window is in Finnish now");
+}
+
+#[gpui_kit::test]
+fn the_settings_page_fits_the_window_at_every_width(cx: &mut TestAppContext) {
+    let env = open_sized(cx, "settings-widths", 1360.0, 860.0, |_, _| {});
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+    for width in [800.0, 900.0, 1000.0, 1100.0, 1200.0, 1250.0, 1300.0, 1350.0, 1400.0, 1500.0, 1700.0, 2000.0] {
+        cx.simulate_window_resize(env.handle, size(px(width), px(860.0)));
+        env.ui(cx, |window, _| {
+            // The backup buttons are in the right-hand column when there are two columns,
+            // and the language pills in the left one: both must be wholly inside the window.
+            for id in ["backup-save", "lang-None", "label-total"] {
+                let bounds = window.find(id).bounds();
+                assert!(bounds.right() <= px(width), "{id} sticks out at width {width}: right edge {:?}", bounds.right());
+            }
+        });
+    }
+}
+
+#[gpui_kit::test]
+fn the_advanced_settings_are_all_shown_under_their_heading(cx: &mut TestAppContext) {
+    let env = open(cx, "advanced", |_, _| {});
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+    // Nothing is folded away: the update check and the MCP server are there at once.
+    for id in ["lang-None", "theme-None", "label-total", "backup-save", "settings-advanced", "updates-false", "mcp-true"] {
+        assert!(env.exists(cx, id), "{id}");
+    }
+    assert!(!env.exists(cx, "mcp-changes-true"), "the MCP details still follow its own switch");
+}
+
+#[gpui_kit::test]
+fn the_everyday_settings_come_before_the_rest(cx: &mut TestAppContext) {
+    // One column in a narrow window: the chart's names first, then language, appearance, backup, then the advanced ones.
+    let env = open_sized(cx, "settings-order", 1100.0, 860.0, |_, _| {});
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+    env.ui(cx, |window, _| {
+        let tops: Vec<_> = ["label-total", "lang-None", "theme-None", "backup-save", "settings-advanced", "updates-false", "mcp-true"]
+            .iter()
+            .map(|id| window.find(*id).bounds().top())
+            .collect();
+        assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "{tops:?}");
+    });
+}
+
+#[gpui_kit::test]
+fn changing_the_language_renames_the_starter_categories_that_were_not_edited(cx: &mut TestAppContext) {
+    let mut ids = (0, 0);
+    let env = open(cx, "starter-names", |st, cats| {
+        // One starter category has been renamed by the user; the rest are as they came.
+        let mut cats = cats.clone();
+        let food = cats.items.iter().position(|c| c.name == "Food").unwrap();
+        cats.items[food].name = "Groceries".to_string();
+        ids = (cats.items[food].id, category_id(&cats, "Housing"));
+        st.save_categories(&cats).unwrap();
+        st.save_month(this_month(), &MonthData { entries: vec![entry(1, ids.0, "Lunch", 990), entry(2, ids.1, "Rent", 80000)] }).unwrap();
+    });
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+
+    // No restart needed: the names change as soon as the language does.
+    env.click(cx, "lang-Some(Fi)");
+    let fi = Categories::defaults_for(Lang::Fi);
+    env.read(cx, |app| {
+        assert_eq!(app.cats.get(ids.0).unwrap().name, "Groceries", "an edited category keeps its name");
+        assert_eq!(app.cats.get(ids.1).unwrap().name, fi.get(ids.1).unwrap().name);
+        assert_eq!(app.cats.get(1).unwrap().name, fi.get(1).unwrap().name);
+        // The entries still point at the same categories.
+        assert_eq!(app.entries.iter().map(|e| e.category_id).collect::<Vec<_>>(), vec![ids.0, ids.1]);
+    });
+    // It was saved, not only shown.
+    assert_eq!(env.st.load_categories().get(ids.1).unwrap().name, fi.get(ids.1).unwrap().name);
+
+    // And back again.
+    env.click(cx, "lang-Some(En)");
+    env.read(cx, |app| assert_eq!(app.cats.get(ids.1).unwrap().name, "Housing"));
+}
+
+#[gpui_kit::test]
+fn automatic_language_translates_the_starter_categories_when_the_app_starts(cx: &mut TestAppContext) {
+    // The data was made in English but the settings now say Finnish (e.g. the system language changed).
+    let env = open(cx, "starter-start", |st, _| {
+        let mut settings = st.load_settings().value;
+        settings.language = Some(Lang::Fi);
+        st.save_settings(&settings).unwrap();
+    });
+    let fi = Categories::defaults_for(Lang::Fi);
+    env.read(cx, |app| {
+        assert_eq!(app.lc.lang, Lang::Fi);
+        assert_eq!(app.cats.items.iter().map(|c| c.name.clone()).collect::<Vec<_>>(), fi.items.iter().map(|c| c.name.clone()).collect::<Vec<_>>());
+    });
+    assert_eq!(env.st.load_categories().get(4).unwrap().name, fi.get(4).unwrap().name);
 }

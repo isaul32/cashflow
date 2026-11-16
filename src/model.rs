@@ -82,6 +82,37 @@ impl Categories {
         c
     }
 
+    /// Gives the starter categories the names of `lang`, as long as they have not been edited.
+    /// A starter category counts as unedited when it still has its original kind, colour and
+    /// place at the top level and its name is that category's name in some language. Edited ones,
+    /// and ones the user made, are left alone, and so is a rename that would collide with another
+    /// category of the same kind. Returns true if anything changed.
+    pub fn translate_defaults(&mut self, lang: crate::i18n::Lang) -> bool {
+        let target = Categories::defaults_for(lang);
+        let all: Vec<Categories> = crate::i18n::Lang::ALL.iter().map(|&l| Categories::defaults_for(l)).collect();
+        let mut changed = false;
+        for new in &target.items {
+            let Some(pos) = self.items.iter().position(|c| c.id == new.id) else { continue };
+            let current = &self.items[pos];
+            let unedited = current.kind == new.kind
+                && current.color == new.color
+                && current.parent.is_none()
+                && all.iter().any(|names| names.get(new.id).is_some_and(|d| d.name == current.name));
+            if !unedited || current.name == new.name {
+                continue;
+            }
+            let taken = self
+                .items
+                .iter()
+                .any(|o| o.id != new.id && o.kind == new.kind && o.name.eq_ignore_ascii_case(&new.name));
+            if !taken {
+                self.items[pos].name = new.name.clone();
+                changed = true;
+            }
+        }
+        changed
+    }
+
     pub fn add(
         &mut self,
         name: impl Into<String>,
@@ -470,5 +501,70 @@ mod tests {
             .collect();
         let food_pos = names.iter().position(|(_, n)| n == "Food").unwrap();
         assert_eq!(names[food_pos + 1], (1, "Groceries".to_string()));
+    }
+
+    fn names(cats: &Categories) -> Vec<&str> {
+        cats.items.iter().map(|c| c.name.as_str()).collect()
+    }
+
+    #[test]
+    fn unedited_starter_categories_follow_the_language() {
+        use crate::i18n::Lang;
+        let mut cats = Categories::defaults_for(Lang::En);
+        assert!(cats.translate_defaults(Lang::Fi));
+        assert_eq!(names(&cats), names(&Categories::defaults_for(Lang::Fi)));
+        // The ids stay, so entries keep pointing at the same categories.
+        assert_eq!(cats.items.iter().map(|c| c.id).collect::<Vec<_>>(), vec![1, 2, 3, 4, 5, 6]);
+        // Nothing left to do the second time, and any language can be reached from any other.
+        assert!(!cats.translate_defaults(Lang::Fi));
+        for from in Lang::ALL {
+            for to in Lang::ALL {
+                let mut c = Categories::defaults_for(from);
+                c.translate_defaults(to);
+                assert_eq!(c, Categories::defaults_for(to), "{from:?} to {to:?}");
+            }
+        }
+        // The categories of an old data file that started out as the English defaults count too.
+        let mut old = Categories::default();
+        assert!(old.translate_defaults(Lang::Sv));
+        assert_eq!(old.items[3].name, "Mat");
+    }
+
+    #[test]
+    fn edited_starter_categories_keep_their_names() {
+        use crate::i18n::Lang;
+        let mut cats = Categories::defaults_for(Lang::En);
+        let food = cats.items.iter().position(|c| c.name == "Food").unwrap();
+        cats.items[food].name = "Groceries".to_string(); // renamed
+        let housing = cats.items.iter().position(|c| c.name == "Housing").unwrap();
+        cats.items[housing].color = 0x123456; // recoloured
+        let transport = cats.items.iter().position(|c| c.name == "Transport").unwrap();
+        cats.items[transport].parent = Some(housing as u64 + 1); // moved under another
+        assert!(cats.translate_defaults(Lang::Fi));
+        let fi = Categories::defaults_for(Lang::Fi);
+        assert_eq!(cats.items[food].name, "Groceries");
+        assert_eq!(cats.items[housing].name, "Housing");
+        assert_eq!(cats.items[transport].name, "Transport");
+        // The untouched ones were translated.
+        assert_eq!(cats.items[0].name, fi.items[0].name);
+        assert_eq!(cats.items[5].name, fi.items[5].name);
+    }
+
+    #[test]
+    fn categories_made_by_the_user_and_name_clashes_are_left_alone() {
+        use crate::i18n::Lang;
+        let mut cats = Categories::defaults_for(Lang::En);
+        let custom = cats.add("Pets", Kind::Expense, None, 0x654321);
+        // The user already has an expense category called like the Finnish "Ruoka".
+        cats.add("ruoka", Kind::Expense, None, 0x111111);
+        assert!(cats.translate_defaults(Lang::Fi));
+        assert_eq!(cats.get(custom).unwrap().name, "Pets");
+        assert!(names(&cats).contains(&"Food"), "the clash keeps the old name: {:?}", names(&cats));
+        assert!(names(&cats).contains(&"Palkka"), "others still move: {:?}", names(&cats));
+        // A deleted starter category is not brought back.
+        let mut cats = Categories::defaults_for(Lang::En);
+        cats.items.retain(|c| c.name != "Leisure");
+        cats.translate_defaults(Lang::De);
+        assert_eq!(cats.items.len(), 5);
     }
 }

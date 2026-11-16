@@ -21,11 +21,12 @@ Built with Rust and [GPUI Kit](https://gpui-kit.com).
   restore it later or on another computer, or export every entry as CSV for a spreadsheet. Restoring
   replaces the current data, after saving a copy of it in the `backups` folder of the data folder
 - Light and dark theme
-- Optional update notice: off by default; when turned on in Settings, the app asks GitHub for the
+- Optional MCP server (stdio): lets an AI assistant such as Claude Code read and manage your budget, see [MCP server](#mcp-server)
+- Optional update notice: off by default; when turned on in Settings (under Advanced), the app asks GitHub for the
   latest release at startup and shows a link if a newer version exists. Nothing is installed automatically
 - Six languages: English, Finnish, Swedish, German, French and Spanish. The language follows your
   system by default and can be changed in Settings. Numbers, currency (EUR, USD, GBP, SEK, NOK, DKK,
-  CHF) and month names are formatted the way each language expects, e.g. `€1,234.50` or `1 234,50 €`
+  CHF) and month names are formatted the way each language expects, e.g. `€1,234.50` or `1 234,50 €`. The starter categories are translated too, as long as you have not edited them
 
 ## Download
 
@@ -61,6 +62,48 @@ The data file has a schema version. When a new release changes the layout, the a
 automatically and keeps the original as `data.v<N>.json.bak`; a file from a newer release is never overwritten.
 Data folders from before 0.1.4 (`categories.json` plus one `YYYY-MM.json` per month) are imported once and
 the old files are moved to `legacy/`.
+
+## MCP server
+
+CashFlow can be used by an AI assistant such as Claude Code through the [Model Context Protocol](https://modelcontextprotocol.io):
+it can read months and categories, add and edit entries, manage categories and recurring entries, change settings and
+export data. If the window is open, it shows the assistant's changes within a second.
+
+It works over **stdio**. The assistant starts `cashflow --mcp` itself, as a background process without a window, and
+talks to it through pipes. Nothing listens on the network, and there is no port or token to manage. It works on the same
+data files as the app, also while the window is open.
+
+It is **off by default**. To use it:
+
+1. Open Settings, and under **Advanced** turn on MCP server.
+2. Optionally turn on **Allow changes**. Without it the assistant can only read.
+3. Press **Copy Claude Code command** and run it once in a terminal. It looks like this:
+
+   ```bash
+   claude mcp add cashflow -- "C:\Program Files\CashFlow\cashflow.exe" --mcp
+   ```
+
+Any other MCP client that can start a stdio server works the same way: the command is the app itself with the `--mcp`
+argument. The app does not have to be running.
+
+You stay in control. The process reads the settings on every request, so turning the server off or changes off in the app
+takes effect at once, also for an assistant that is already connected:
+
+- Nothing is offered until the server is turned on.
+- Tools that change data are not even offered, and are refused, unless **Allow changes** is on. The assistant cannot
+  change these settings or the update check.
+- `restore_backup` needs an explicit confirmation and saves a copy of the current data first.
+
+Two things can write the data at once (the window and the assistant's process). Writes are serialized with a lock file
+and always start from the latest saved data, so a change by one is not lost by the other.
+
+**Tools.** Reading: `get_state`, `list_categories`, `list_months`, `list_entries`, `get_month_summary`,
+`get_year_summary`, `list_recurring`, `get_settings`, `export_csv`, `export_backup` and `export_sankeymatic`.
+Changing: `add_entry`, `update_entry`, `delete_entry`, `add_category`, `update_category`, `delete_category`,
+`update_recurring`, `stop_recurring`, `delete_recurring`, `set_settings`, `import_sankeymatic` and
+`restore_backup`. Amounts are positive numbers in the app's currency; whether an entry is income or expense follows from
+its category. Months not given default to the current month. The tools are described to the assistant in full when it
+connects.
 
 ## Try it with demo data
 

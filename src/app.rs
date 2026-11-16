@@ -25,7 +25,7 @@ use crate::year::{self, YearSummary};
 
 /// Category colours: vivid ones (used for new categories by default), plus a
 /// darker and a muted (softer) set of the same hues. The picker shows all three.
-const PALETTE: [u32; 10] = [
+pub(crate) const PALETTE: [u32; 10] = [
     0x3F51B5, 0xFF9800, 0x03A9F4, 0x9C27B0, 0xE91E63, 0x4CAF50, 0x795548, 0x00BCD4, 0xCDDC39,
     0xFF5722,
 ];
@@ -277,6 +277,11 @@ impl CashFlowApp {
         }
         crate::brand::apply(cx);
         crate::menu::set(cx, &app.lc);
+        // The system language may have changed since last time (language "automatic").
+        if app.cats.translate_defaults(app.lc.lang) {
+            app.commit();
+        }
+        app.watch_storage(window, cx);
         if app.settings.check_updates {
             app.check_for_updates(cx);
         }
@@ -336,6 +341,10 @@ impl CashFlowApp {
     fn apply_locale(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.lc = Locale::resolve(self.settings.language, self.settings.currency, &self.system);
         let lc = self.lc;
+        // Starter categories that were never edited follow the language.
+        if self.cats.translate_defaults(lc.lang) {
+            self.commit();
+        }
         crate::menu::set(cx, &lc);
         let amount_placeholder = lc.plain_amount(0);
         self.name_in.update(cx, |s, cx| s.set_placeholder(lc.t(Msg::PlaceholderNote), window, cx));
@@ -1013,6 +1022,8 @@ impl CashFlowApp {
     }
 }
 
+mod mcp;
+mod sync;
 mod view;
 
 #[cfg(test)]

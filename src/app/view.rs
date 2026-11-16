@@ -135,9 +135,9 @@ impl Layout {
         }
     }
 
-    /// Wide enough to lay settings cards out in two columns.
+    /// Wide enough to lay settings cards out in two columns (each gets at least about 440 px).
     fn two_columns(self) -> bool {
-        self.width >= 1300.0
+        self.width >= 1200.0
     }
 }
 
@@ -1248,6 +1248,7 @@ impl CashFlowApp {
                 .on_click(cx.listener(move |this, _, _, cx| this.set_check_updates(on, cx)))
             })
             .collect();
+
         let hint = |text: &'static str| div().text_sm().text_color(p.muted_fg).child(text);
 
         let lang_card = card(p)
@@ -1270,6 +1271,39 @@ impl CashFlowApp {
             .child(heading(self.t(Msg::UpdatesTitle)))
             .child(hint(self.t(Msg::UpdatesHelp)))
             .child(h_flex().flex_wrap().gap_2().children(update_options))
+            .into_any_element();
+        let mcp = &self.settings.mcp;
+        let mcp_options: Vec<_> = [(false, self.t(Msg::Off)), (true, self.t(Msg::On))]
+            .into_iter()
+            .map(|(on, label)| {
+                pill(SharedString::from(format!("mcp-{on}")), label.to_string(), None, mcp.enabled == on, p)
+                    .on_click(cx.listener(move |this, _, _, cx| this.set_mcp_enabled(on, cx)))
+            })
+            .collect();
+        let mcp_change_options: Vec<_> = [(false, self.t(Msg::Off)), (true, self.t(Msg::On))]
+            .into_iter()
+            .map(|(on, label)| {
+                pill(SharedString::from(format!("mcp-changes-{on}")), label.to_string(), None, mcp.allow_changes == on, p)
+                    .on_click(cx.listener(move |this, _, _, cx| this.set_mcp_changes(on, cx)))
+            })
+            .collect();
+        let mcp_card = card(p)
+            .gap_3()
+            .child(heading(self.t(Msg::McpTitle)))
+            .child(hint(self.t(Msg::McpHelp)))
+            .child(h_flex().flex_wrap().gap_2().children(mcp_options))
+            .when(mcp.enabled, |card| {
+                card.child(heading(self.t(Msg::McpChanges)))
+                    .child(hint(self.t(Msg::McpChangesHelp)))
+                    .child(h_flex().flex_wrap().gap_2().children(mcp_change_options))
+                    .child(hint(self.t(Msg::McpConnectHelp)))
+                    .child(h_flex().child(
+                        Button::new("mcp-copy-command")
+                            .outline()
+                            .label(self.t(Msg::McpCopyCommand))
+                            .on_click(cx.listener(|this, _, _, cx| this.copy_to_clipboard(this.mcp_command(), cx))),
+                    ))
+            })
             .into_any_element();
         let restore_prompt = self.pending_restore.as_ref().map(|b| {
             let text = self.tf(
@@ -1325,9 +1359,9 @@ impl CashFlowApp {
             .gap_3()
             .child(heading(self.t(Msg::ChartLabels)))
             .child(hint(self.t(Msg::ChartLabelsHelp)))
-            .child(field(self.t(Msg::LabelTotal), p).child(Input::new(&self.total_in)))
-            .child(field(self.t(Msg::LabelSavings), p).child(Input::new(&self.savings_in)))
-            .child(field(self.t(Msg::LabelDeficit), p).child(Input::new(&self.deficit_in)))
+            .child(field(self.t(Msg::LabelTotal), p).child(Input::new(&self.total_in).id("label-total")))
+            .child(field(self.t(Msg::LabelSavings), p).child(Input::new(&self.savings_in).id("label-savings")))
+            .child(field(self.t(Msg::LabelDeficit), p).child(Input::new(&self.deficit_in).id("label-deficit")))
             .child(
                 h_flex()
                     .gap_2()
@@ -1339,25 +1373,43 @@ impl CashFlowApp {
             )
             .into_any_element();
 
+        // The chart's names come first, then language and look, then data; the rest is under "Advanced".
+        // What is needed now and then comes first. The rest is grouped under "Advanced".
+        let advanced = v_flex()
+            .gap_4()
+            .child(
+                h_flex()
+                    .id("settings-advanced")
+                    .test_support()
+                    .items_baseline()
+                    .gap_2()
+                    .child(heading(self.t(Msg::SettingsAdvanced))),
+            )
+            .child(updates_card)
+            .child(mcp_card)
+            .into_any_element();
+
+        // Columns share the width, up to 560 px each, so nothing is cut off at any window width.
+        let column = || v_flex().flex_1().min_w_0().max_w(px(560.0)).gap_4();
         let body = if lay.two_columns() {
             h_flex()
                 .items_start()
                 .gap_4()
-                .flex_shrink_0()
-                .child(v_flex().w(px(560.0)).flex_shrink_0().gap_4().child(lang_card).child(backup_card))
-                .child(v_flex().w(px(560.0)).flex_shrink_0().gap_4().child(theme_card).child(updates_card).child(labels_card))
+                .w_full()
+                .child(column().child(labels_card).child(lang_card).child(theme_card))
+                .child(column().child(backup_card).child(advanced))
         } else {
             v_flex()
-                .w(px(560.0))
-                .flex_shrink_0()
+                .w_full()
+                .max_w(px(560.0))
                 .gap_4()
+                .child(labels_card)
                 .child(lang_card)
                 .child(theme_card)
-                .child(updates_card)
-                .child(labels_card)
                 .child(backup_card)
+                .child(advanced)
         };
-        v_flex().id("settings-scroll").flex_1().min_h_0().overflow_y_scroll().p_6().child(body)
+        v_flex().id("settings-scroll").test_support().flex_1().min_h_0().overflow_y_scroll().p_6().child(body)
     }
 
     // ---- recurring entries ----

@@ -13,6 +13,7 @@ mod brand;
 mod data;
 mod i18n;
 mod import;
+mod mcp;
 mod menu;
 mod model;
 mod recurring;
@@ -61,6 +62,11 @@ fn attach_parent_console() {
 fn main() {
     #[cfg(all(windows, debug_assertions))]
     attach_parent_console();
+
+    // `cashflow --mcp` is what an AI assistant starts to use the app: no window, MCP over stdio.
+    if std::env::args().skip(1).any(|a| a == "--mcp") {
+        std::process::exit(mcp::run_stdio());
+    }
 
     gpui_kit::application().with_assets(AppAssets).run(|cx| {
         gpui_kit::init(cx);

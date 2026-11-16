@@ -7,6 +7,11 @@
 //! - `settings.json`: preferences of this computer (language, theme, ...). It is
 //!   not part of the data, so restoring a backup does not change it.
 //!
+//! Two processes can use the same folder: the app's window and an MCP session started by an
+//! AI assistant (`cashflow --mcp`). Every write takes a lock file (`data.lock`), first
+//! reads again if the other process changed the file, and only then applies its change, so no
+//! change is lost. [`Storage::watch`] tells the window when the other process wrote.
+//!
 //! Writes are atomic (temp file + rename) and the previous save is kept as
 //! `data.json.bak`. A data file that fails to parse is renamed to `*.corrupt`
 //! (and the previous save is used instead) so nothing is silently overwritten.
@@ -18,6 +23,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
@@ -46,6 +52,68 @@ struct State {
     locked: Option<String>,
     /// Problems found while opening, for [`Storage::take_warnings`].
     warnings: Vec<String>,
+    /// What `data.json` looked like when this process last read or wrote it.
+    stamp: Stamp,
+    /// The same for `settings.json`.
+    settings_stamp: Stamp,
+}
+
+/// Modification time and size of a file: enough to notice that another process changed it.
+type Stamp = Option<(SystemTime, u64)>;
+
+fn stamp_of(path: &Path) -> Stamp {
+    let meta = fs::metadata(path).ok()?;
+    Some((meta.modified().ok()?, meta.len()))
+}
+
+/// What another process changed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Change {
+    /// `data.json`
+    Data,
+    /// `settings.json`
+    Settings,
+}
+
+/// Held while writing `data.json`, so two processes never write at the same time.
+struct FileLock(PathBuf);
+
+impl FileLock {
+    /// A lock file older than this was left by a crashed process.
+    const STALE: Duration = Duration::from_secs(10);
+    const GIVE_UP: Duration = Duration::from_secs(5);
+
+    fn acquire(dir: &Path) -> io::Result<FileLock> {
+        fs::create_dir_all(dir)?;
+        let path = dir.join("data.lock");
+        let started = Instant::now();
+        loop {
+            match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(_) => return Ok(FileLock(path)),
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                    let stale = fs::metadata(&path)
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .and_then(|t| t.elapsed().ok())
+                        .is_some_and(|age| age > Self::STALE);
+                    if stale {
+                        let _ = fs::remove_file(&path);
+                    } else if started.elapsed() > Self::GIVE_UP {
+                        return Err(io::Error::new(io::ErrorKind::TimedOut, "another CashFlow process is writing the data"));
+                    } else {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+}
+
+impl Drop for FileLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -102,14 +170,58 @@ impl Storage {
         std::mem::take(&mut self.lock().warnings)
     }
 
-    /// Applies a change and writes the whole data file.
+    /// Applies a change to the latest data and writes the whole data file.
     fn update(&self, change: impl FnOnce(&mut DataFile)) -> io::Result<()> {
         let mut state = self.lock();
         if let Some(why) = &state.locked {
             return Err(io::Error::other(why.clone()));
         }
+        let _file_lock = FileLock::acquire(&self.dir)?;
+        // The other process may have written since this one last looked. The file is read again
+        // whatever its time and size say: two quick writes can leave both the same, and a change
+        // built on stale data would wipe out the other process's.
+        state.refresh(&self.dir, true)?;
         change(&mut state.data);
-        write_data(&self.dir, &mut state.data)
+        state.write(&self.dir)
+    }
+
+    /// Reads `data.json` again if another process changed it. True if it did.
+    pub fn reload_if_changed(&self) -> bool {
+        let mut state = self.lock();
+        state.refresh(&self.dir, false).unwrap_or(false)
+    }
+
+    /// Starts watching for changes made by another process (every `interval`). Changes this
+    /// storage made itself are not reported. The watching stops when the receiver is dropped.
+    pub fn watch(&self, interval: Duration) -> async_channel::Receiver<Change> {
+        let (tx, rx) = async_channel::unbounded();
+        let storage = self.clone();
+        // If no thread can be made there is no watching: the receiver just never gets anything.
+        let _ = std::thread::Builder::new().name("data-watch".into()).spawn(move || {
+            let (mut told_data, mut told_settings): (Stamp, Stamp) = (None, None);
+            loop {
+                std::thread::sleep(interval);
+                if tx.is_closed() {
+                    return;
+                }
+                let (data_now, settings_now) =
+                    (stamp_of(&storage.dir.join(DATA_FILE)), stamp_of(&storage.settings_path()));
+                let (known_data, known_settings) = {
+                    let state = storage.lock();
+                    (state.stamp, state.settings_stamp)
+                };
+                // Each change is reported once, even if the receiver is slow to act on it.
+                if data_now != known_data && data_now != told_data {
+                    told_data = data_now;
+                    let _ = tx.try_send(Change::Data);
+                }
+                if settings_now != known_settings && settings_now != told_settings {
+                    told_settings = settings_now;
+                    let _ = tx.try_send(Change::Settings);
+                }
+            }
+        });
+        rx
     }
 
     /// A copy of everything that is recorded.
@@ -129,12 +241,17 @@ impl Storage {
     }
 
     pub fn load_settings(&self) -> Loaded<Settings> {
-        load_settings_file(&self.settings_path())
+        let loaded = load_settings_file(&self.settings_path());
+        self.lock().settings_stamp = stamp_of(&self.settings_path());
+        loaded
     }
 
     pub fn save_settings(&self, settings: &Settings) -> io::Result<()> {
         fs::create_dir_all(&self.dir)?;
-        write_atomic(&self.settings_path(), &serde_json::to_string_pretty(settings).map_err(io::Error::other)?)
+        let path = self.settings_path();
+        write_atomic(&path, &serde_json::to_string_pretty(settings).map_err(io::Error::other)?)?;
+        self.lock().settings_stamp = stamp_of(&path);
+        Ok(())
     }
 
     // ---- data ----
@@ -148,7 +265,6 @@ impl Storage {
         self.lock().data.categories.clone()
     }
 
-    #[cfg(test)]
     pub fn save_categories(&self, cats: &Categories) -> io::Result<()> {
         self.update(|d| d.categories = cats.clone())
     }
@@ -195,13 +311,57 @@ fn set_month(data: &mut DataFile, key: MonthKey, month: &MonthData) {
 }
 
 impl State {
+    /// Writes the data and remembers how the file looks now.
+    fn write(&mut self, dir: &Path) -> io::Result<()> {
+        self.stamp = write_data(dir, &mut self.data)?;
+        Ok(())
+    }
+
+    /// Reads `data.json` again if it is not the file this process last saw (always, with `force`).
+    /// True if the data was replaced by what was in the file.
+    fn refresh(&mut self, dir: &Path, force: bool) -> io::Result<bool> {
+        let path = dir.join(DATA_FILE);
+        let now = stamp_of(&path);
+        if now == self.stamp && !force {
+            return Ok(false);
+        }
+        match fs::read_to_string(&path) {
+            Ok(text) => match DataFile::parse(&text) {
+                Ok((data, _)) => {
+                    self.data = data;
+                    self.stamp = now;
+                    Ok(true)
+                }
+                Err(DataError::Newer(v)) => {
+                    let why = format!("{}: {}", path.display(), DataError::Newer(v));
+                    self.locked = Some(why.clone());
+                    Err(io::Error::other(why))
+                }
+                Err(DataError::Invalid(why)) => Err(io::Error::other(format!("{} is unreadable: {why}", path.display()))),
+            },
+            // Deleted by hand: keep what is in memory, the next save writes it again.
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                self.stamp = None;
+                Ok(false)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     fn open(dir: &Path, steps: &[Migration]) -> State {
-        let mut st = State { data: DataFile::default(), locked: None, warnings: Vec::new() };
+        let mut st = State {
+            data: DataFile::default(),
+            locked: None,
+            warnings: Vec::new(),
+            stamp: None,
+            settings_stamp: None,
+        };
         let path = dir.join(DATA_FILE);
         match fs::read_to_string(&path) {
             Ok(text) => match crate::data::parse_with(&text, steps) {
                 Ok((data, from)) => {
                     st.data = data;
+                    st.stamp = stamp_of(&path);
                     if from < steps.len() as u32 + 1 {
                         st.save_upgraded(dir, &text, from);
                     }
@@ -233,7 +393,7 @@ impl State {
             self.warnings.push(why);
             return;
         }
-        if let Err(e) = write_data(dir, &mut self.data) {
+        if let Err(e) = self.write(dir) {
             self.warnings.push(format!("Could not save the upgraded data file: {e}"));
         }
     }
@@ -253,7 +413,7 @@ impl State {
             Some((data, _)) => {
                 self.data = data;
                 self.warnings.push(format!("{note}. Restored the previous save from {}", bak.display()));
-                if let Err(e) = write_data(dir, &mut self.data) {
+                if let Err(e) = self.write(dir) {
                     self.warnings.push(format!("Could not save the restored data file: {e}"));
                 }
             }
@@ -297,7 +457,7 @@ impl State {
                 Err(e) => self.warnings.push(e),
             }
         }
-        if let Err(e) = write_data(dir, &mut self.data) {
+        if let Err(e) = self.write(dir) {
             // The old files stay where they are, so nothing is lost.
             self.warnings.push(format!("Could not save {DATA_FILE}: {e}"));
             return;
@@ -317,7 +477,7 @@ impl State {
 }
 
 /// Writes `data.json` atomically, keeping the previous save as `data.json.bak`.
-fn write_data(dir: &Path, data: &mut DataFile) -> io::Result<()> {
+fn write_data(dir: &Path, data: &mut DataFile) -> io::Result<Stamp> {
     data.written_by = env!("CARGO_PKG_VERSION").to_string();
     data.saved_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let json = data.to_json().map_err(io::Error::other)?;
@@ -327,7 +487,8 @@ fn write_data(dir: &Path, data: &mut DataFile) -> io::Result<()> {
         // A failed copy must not block saving; the new file is still written safely.
         let _ = fs::copy(&path, dir.join("data.json.bak"));
     }
-    write_atomic(&path, &json)
+    write_atomic(&path, &json)?;
+    Ok(stamp_of(&path))
 }
 
 fn write_atomic(path: &Path, text: &str) -> io::Result<()> {
@@ -585,5 +746,122 @@ mod tests {
         let again = Storage::new(&dir);
         assert_eq!(again.load_month(month(2026, 10)), oct);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ---- two processes on one folder ----
+
+    fn entry_in(id: u64, name: &str) -> MonthData {
+        MonthData { entries: vec![Entry { id, category_id: 1, name: name.into(), amount_cents: 100 }] }
+    }
+
+    #[test]
+    fn a_change_made_by_another_process_is_not_lost() {
+        let a = temp_storage("two-a");
+        a.save_month(month(2026, 1), &entry_in(1, "from a")).unwrap();
+        // A second storage on the same folder stands for the other process.
+        let b = Storage::new(a.dir());
+        b.save_month(month(2026, 2), &entry_in(1, "from b")).unwrap();
+
+        // A has not looked again yet, but saving something else keeps B's month.
+        let cats = Categories::default();
+        a.save_categories(&cats).unwrap();
+        assert_eq!(a.list_months(), vec![month(2026, 1), month(2026, 2)]);
+        assert_eq!(Storage::new(a.dir()).list_months().len(), 2);
+        let _ = fs::remove_dir_all(a.dir());
+    }
+
+    #[test]
+    fn reload_if_changed_sees_the_other_process_but_not_itself() {
+        let a = temp_storage("reload-a");
+        a.save_month(month(2026, 1), &entry_in(1, "first")).unwrap();
+        assert!(!a.reload_if_changed(), "its own write is not a change");
+        let b = Storage::new(a.dir());
+        assert!(!b.reload_if_changed());
+
+        b.save_month(month(2026, 3), &entry_in(1, "second")).unwrap();
+        assert!(a.reload_if_changed());
+        assert_eq!(a.load_month(month(2026, 3)).entries[0].name, "second");
+        assert!(!a.reload_if_changed(), "reported once");
+        let _ = fs::remove_dir_all(a.dir());
+    }
+
+    #[test]
+    fn the_lock_is_released_after_a_write_and_a_stale_one_is_ignored() {
+        let a = temp_storage("lock");
+        a.save_month(month(2026, 1), &entry_in(1, "x")).unwrap();
+        assert!(!a.dir().join("data.lock").exists(), "the lock is removed after writing");
+
+        // A lock left behind by a crashed process (old enough) does not block saving.
+        let lock = a.dir().join("data.lock");
+        let file = fs::File::create(&lock).unwrap();
+        file.set_modified(SystemTime::now() - Duration::from_secs(60)).unwrap();
+        drop(file);
+        a.save_month(month(2026, 2), &entry_in(1, "y")).unwrap();
+        assert!(!lock.exists());
+        assert_eq!(a.list_months().len(), 2);
+        let _ = fs::remove_dir_all(a.dir());
+    }
+
+    #[test]
+    fn writers_in_several_threads_do_not_lose_each_other() {
+        let first = temp_storage("threads");
+        first.save_month(month(2026, 1), &entry_in(1, "start")).unwrap();
+        let dir = first.dir().to_path_buf();
+        let workers: Vec<_> = (2..=9u8)
+            .map(|m| {
+                let dir = dir.clone();
+                std::thread::spawn(move || {
+                    // Each thread has its own storage, like a separate process would.
+                    let st = Storage::new(&dir);
+                    st.save_month(month(2026, m), &entry_in(1, "worker")).unwrap();
+                })
+            })
+            .collect();
+        for w in workers {
+            w.join().unwrap();
+        }
+        assert_eq!(Storage::new(&dir).list_months().len(), 9, "every month was kept");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn watching_reports_changes_from_elsewhere_only() {
+        let a = temp_storage("watch");
+        a.save_month(month(2026, 1), &entry_in(1, "x")).unwrap();
+        a.save_settings(&Settings::default()).unwrap();
+        let events = a.watch(Duration::from_millis(20));
+
+        // Its own writes are not reported.
+        a.save_month(month(2026, 2), &entry_in(1, "own")).unwrap();
+        a.save_settings(&Settings { check_updates: true, ..Settings::default() }).unwrap();
+        std::thread::sleep(Duration::from_millis(150));
+        assert!(events.try_recv().is_err(), "nothing happened elsewhere");
+
+        let b = Storage::new(a.dir());
+        b.save_month(month(2026, 5), &entry_in(1, "other")).unwrap();
+        let mut seen = Vec::new();
+        for _ in 0..100 {
+            if let Ok(change) = events.try_recv() {
+                seen.push(change);
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(seen, vec![Change::Data]);
+
+        b.save_settings(&Settings { language: Some(crate::i18n::Lang::Fi), ..Settings::default() }).unwrap();
+        let mut got_settings = false;
+        for _ in 0..100 {
+            if events.try_recv() == Ok(Change::Settings) {
+                got_settings = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(got_settings);
+
+        // Once the receiver is gone the thread stops by itself (it cannot be observed, so just drop it).
+        drop(events);
+        let _ = fs::remove_dir_all(a.dir());
     }
 }

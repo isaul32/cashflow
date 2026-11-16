@@ -1,6 +1,6 @@
 [package]
 name = "cashflow"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 license = "MIT"
 authors = ["Sauli Anto"]
@@ -8,6 +8,7 @@ repository = "https://github.com/isaul32/cashflow"
 description = "Monthly income and expense tracker with a Sankey flow chart"
 
 [dependencies]
+async-channel = "2"
 chrono = "0.4.45"
 directories = "6.0.0"
 gpui-kit = "0.9.1"

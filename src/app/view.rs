@@ -88,10 +88,12 @@ fn pill(
     color: Option<u32>,
     selected: bool,
     p: Pal,
-) -> Stateful<Div> {
+    // Not `Stateful<Div>`: UI test builds wrap the element in an observer (see `test_support`).
+) -> impl StatefulInteractiveElement + IntoElement {
     let tint = color.map(hsla).unwrap_or(p.primary);
     div()
         .id(id)
+        .test_support()
         .flex()
         .items_center()
         .gap_2()
@@ -140,10 +142,18 @@ impl Layout {
 }
 
 /// A row in a category tree picker, indented by depth.
-fn tree_row(id: SharedString, label: String, color: Option<u32>, depth: usize, selected: bool, p: Pal) -> Stateful<Div> {
+fn tree_row(
+    id: SharedString,
+    label: String,
+    color: Option<u32>,
+    depth: usize,
+    selected: bool,
+    p: Pal,
+) -> impl StatefulInteractiveElement + IntoElement {
     let tint = color.map(hsla).unwrap_or(p.primary);
     h_flex()
         .id(id)
+        .test_support()
         .gap_2()
         .items_center()
         .py_1()
@@ -187,6 +197,7 @@ impl CashFlowApp {
             let active = self.page == page;
             div()
                 .id(label)
+                .test_support()
                 .flex()
                 .items_center()
                 .gap_3()
@@ -395,6 +406,7 @@ impl CashFlowApp {
             let accent = if kind == Kind::Income { p.success } else { p.danger };
             div()
                 .id(SharedString::from(format!("seg-{for_category}-{label}")))
+                .test_support()
                 .flex_1()
                 .py_1()
                 .rounded_md()
@@ -442,6 +454,7 @@ impl CashFlowApp {
             // Small window: one scrolling column; the chart comes first, then the entry form and list.
             return v_flex()
                 .id("overview-compact-scroll")
+                .test_support()
                 .flex_1()
                 .min_h_0()
                 .overflow_y_scroll()
@@ -529,11 +542,11 @@ impl CashFlowApp {
                 h_flex()
                     .gap_2()
                     .items_end()
-                    .child(field(self.t(Msg::Description), p).flex_1().child(Input::new(&self.name_in)))
+                    .child(field(self.t(Msg::Description), p).flex_1().child(Input::new(&self.name_in).id("entry-name")))
                     .child(
                         field(self.tf(Msg::AmountLabel, &[("symbol", self.lc.currency_symbol())]), p)
                             .w(px(110.0))
-                            .child(Input::new(&self.amount_in)),
+                            .child(Input::new(&self.amount_in).id("entry-amount")),
                     ),
             )
             .child(h_flex().child(
@@ -1350,7 +1363,6 @@ impl CashFlowApp {
     // ---- recurring entries ----
 
     fn recurring_page(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
-        let now = MonthKey::current();
         let mut rows = v_flex().gap_1();
         for r in &self.recurring.items {
             let id = r.id;
@@ -1371,10 +1383,12 @@ impl CashFlowApp {
             } else {
                 (r.name.clone(), format!("{cat_name} · {span}"))
             };
-            let active = r.is_active(now);
+            // Once it has an end month it is stopped; only a running one offers Stop.
+            let running = r.end.is_none();
             rows = rows.child(
                 h_flex()
                     .id(id_of("rec", id))
+                    .test_support()
                     .gap_3()
                     .items_center()
                     .px_2()
@@ -1396,7 +1410,7 @@ impl CashFlowApp {
                             .text_color(amount_color)
                             .child(format!("{sign}{}", self.lc.money(r.amount_cents))),
                     )
-                    .when(active, |row| {
+                    .when(running, |row| {
                         row.child(Button::new(id_of("rec-stop", id)).ghost().small().label(self.t(Msg::RecurringStop)).on_click(
                             cx.listener(move |this, _, _, cx| this.stop_recurring(id, cx)),
                         ))
@@ -1490,7 +1504,7 @@ impl CashFlowApp {
             .gap_3()
             .child(heading(if editing { self.t(Msg::EditCategory) } else { self.t(Msg::NewCategory) }))
             .child(self.segmented(self.cat_kind, true, p, cx))
-            .child(field(self.t(Msg::Name), p).child(Input::new(&self.cat_name_in)))
+            .child(field(self.t(Msg::Name), p).child(Input::new(&self.cat_name_in).id("cat-name")))
             .child(field(self.t(Msg::Color), p).child(swatches))
             .child(field(self.t(Msg::Parent), p).flex_1().min_h_0().child(tree_box("parent-tree", None, true, p).children(parents)))
             .child(

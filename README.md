@@ -90,6 +90,9 @@ cargo build --release
 cargo test
 ```
 
+`cargo test` also runs the UI tests in `src/app/tests.rs`. They render the real window headlessly and drive
+it with clicks and key presses (no display needed), each with its own temporary data folder.
+
 ## Website and screenshots
 
 The product website lives in `site/` (Astro, deployed on Cloudflare Pages), see `site/README.md`. The

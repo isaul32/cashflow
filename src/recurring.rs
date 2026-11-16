@@ -33,11 +33,6 @@ impl Recurring {
     fn covers(&self, month: MonthKey) -> bool {
         month >= self.start && self.end.is_none_or(|end| month <= end)
     }
-
-    /// Whether it still adds entries in `month` or later.
-    pub fn is_active(&self, month: MonthKey) -> bool {
-        self.end.is_none_or(|end| end >= month)
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -208,7 +203,6 @@ mod tests {
         let id = store.add(1, "X".into(), 1, month(2026, 8));
         store.stop(id, month(2026, 1));
         assert_eq!(store.items[1].end, Some(month(2026, 8)));
-        assert!(store.items[0].is_active(month(2026, 5)) && !store.items[0].is_active(month(2026, 6)));
         let _ = fs::remove_dir_all(st.dir());
     }
 

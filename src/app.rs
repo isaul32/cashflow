@@ -137,7 +137,11 @@ fn id_of(prefix: &str, id: u64) -> SharedString {
 
 impl CashFlowApp {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let storage = Storage::default_location();
+        Self::with_storage(Storage::default_location(), window, cx)
+    }
+
+    /// Like [`Self::new`] with an explicit data folder (`None`: no folder available).
+    pub fn with_storage(storage: Option<Storage>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         // Developer overrides, used by site/tools/screenshots.ps1 to capture screenshots.
         let month = std::env::var("CASHFLOW_MONTH")
             .ok()
@@ -1010,3 +1014,6 @@ impl CashFlowApp {
 }
 
 mod view;
+
+#[cfg(test)]
+mod tests;

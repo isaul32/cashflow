@@ -89,6 +89,8 @@ pub struct CashFlowApp {
     pending_import: Option<ImportPlan>,
     /// A neutral success message (saved a file, imported entries).
     notice: Option<SharedString>,
+    /// A newer release found by the opt-in update check.
+    update: Option<crate::update::Release>,
     _subs: Vec<Subscription>,
 }
 
@@ -239,6 +241,7 @@ impl CashFlowApp {
             year_summary: YearSummary::default(),
             pending_import: None,
             notice: None,
+            update: None,
             _subs: subs,
         };
         app.refresh();
@@ -251,7 +254,38 @@ impl CashFlowApp {
             Theme::change(mode, Some(window), cx);
         }
         crate::brand::apply(cx);
+        if app.settings.check_updates {
+            app.check_for_updates(cx);
+        }
         app
+    }
+
+    /// Looks for a newer release in the background; failures (e.g. offline) are silent.
+    fn check_for_updates(&mut self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            let found = cx
+                .background_spawn(async { crate::update::check(env!("CARGO_PKG_VERSION")) })
+                .await;
+            if let Ok(Some(release)) = found {
+                this.update(cx, |this, cx| {
+                    this.update = Some(release);
+                    cx.notify();
+                })
+                .ok();
+            }
+        })
+        .detach();
+    }
+
+    fn set_check_updates(&mut self, on: bool, cx: &mut Context<Self>) {
+        self.settings.check_updates = on;
+        self.persist_settings();
+        if on {
+            self.check_for_updates(cx);
+        } else {
+            self.update = None;
+        }
+        cx.notify();
     }
 
     /// The logo variant that suits the current theme.

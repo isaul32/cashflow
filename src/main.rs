@@ -14,6 +14,7 @@ mod model;
 mod sankey;
 mod settings;
 mod storage;
+mod update;
 mod year;
 
 // Icons used by the app that are not in the default component bundle.

@@ -16,6 +16,8 @@ Built with Rust and [GPUI Kit](https://gpui-kit.com).
 - Yearly view: all months of a year in one Sankey chart, a per-month breakdown, and previous years one click away
 - Automatic saving, plain JSON files
 - Light and dark theme
+- Optional update notice: off by default; when turned on in Settings, the app asks GitHub for the
+  latest release at startup and shows a link if a newer version exists. Nothing is installed automatically
 - Six languages: English, Finnish, Swedish, German, French and Spanish. The language follows your
   system by default and can be changed in Settings. Numbers, currency (EUR, USD, GBP, SEK, NOK, DKK,
   CHF) and month names are formatted the way each language expects, e.g. `€1,234.50` or `1 234,50 €`

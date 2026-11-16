@@ -427,6 +427,28 @@ messages! {
         sv: "Följ systeminställningen eller välj ett tema.", de: "Der Systemeinstellung folgen oder ein Design wählen.",
         fr: "Suivre le réglage du système ou choisir un thème.", es: "Seguir el ajuste del sistema o elegir un tema.",
     }
+    UpdatesTitle {
+        en: "Updates", fi: "Päivitykset", sv: "Uppdateringar", de: "Updates", fr: "Mises à jour", es: "Actualizaciones",
+    }
+    UpdatesHelp {
+        en: "When on, the app checks GitHub for a newer release at startup. Only a generic request is sent, nothing is downloaded or installed, and it is off by default.",
+        fi: "Kun päällä, sovellus tarkistaa käynnistyksessä GitHubista uudemman julkaisun. Lähetetään vain yleinen pyyntö, mitään ei ladata tai asenneta, ja asetus on oletuksena pois päältä.",
+        sv: "När det är på kontrollerar appen GitHub efter en nyare version vid start. Bara en generell förfrågan skickas, inget laddas ned eller installeras, och det är av som standard.",
+        de: "Wenn aktiv, prüft die App beim Start auf GitHub, ob eine neuere Version vorliegt. Es wird nur eine allgemeine Anfrage gesendet, nichts heruntergeladen oder installiert; standardmäßig aus.",
+        fr: "Si activé, l'application cherche une version plus récente sur GitHub au démarrage. Seule une requête générique est envoyée, rien n'est téléchargé ni installé, et c'est désactivé par défaut.",
+        es: "Si está activado, la aplicación busca una versión más reciente en GitHub al iniciar. Solo se envía una solicitud genérica, no se descarga ni instala nada, y está desactivado por defecto.",
+    }
+    On { en: "On", fi: "Päällä", sv: "På", de: "An", fr: "Activé", es: "Activado" }
+    Off { en: "Off", fi: "Pois", sv: "Av", de: "Aus", fr: "Désactivé", es: "Desactivado" }
+    UpdateAvailable {
+        en: "Version {version} is available.", fi: "Versio {version} on saatavilla.",
+        sv: "Version {version} är tillgänglig.", de: "Version {version} ist verfügbar.",
+        fr: "La version {version} est disponible.", es: "La versión {version} está disponible.",
+    }
+    UpdateView {
+        en: "View release", fi: "Näytä julkaisu", sv: "Visa version", de: "Version ansehen",
+        fr: "Voir la version", es: "Ver versión",
+    }
     SubOverview {
         en: "Where your money comes from and where it goes", fi: "Mistä rahasi tulevat ja minne ne menevät",
         sv: "Var dina pengar kommer ifrån och vart de går", de: "Woher dein Geld kommt und wohin es geht",

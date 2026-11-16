@@ -81,6 +81,8 @@ pub struct Settings {
     pub currency: Option<Currency>,
     /// `None` follows the system appearance.
     pub theme: Option<ThemeChoice>,
+    /// Look for a newer release on GitHub at startup. Off unless the user opts in.
+    pub check_updates: bool,
 }
 
 #[cfg(test)]
@@ -122,6 +124,7 @@ mod tests {
         // Old files without the new fields mean "automatic".
         let old: Settings = serde_json::from_str(r#"{"labels":{"total":"X"}}"#).unwrap();
         assert_eq!((old.language, old.currency, old.theme), (None, None, None));
+        assert!(!old.check_updates, "update checks must be opt-in");
         let dark: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
         assert_eq!(dark.theme, Some(ThemeChoice::Dark));
     }

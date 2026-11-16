@@ -323,6 +323,36 @@ impl CashFlowApp {
             })
     }
 
+    /// Shown when the opt-in update check found a newer release.
+    fn update_banner(&self, p: Pal, cx: &mut Context<Self>) -> Option<impl IntoElement> {
+        let release = self.update.clone()?;
+        let text = self.tf(Msg::UpdateAvailable, &[("version", &release.version)]);
+        Some(
+            h_flex()
+                .mx_6()
+                .mt_4()
+                .px_4()
+                .py_2()
+                .gap_3()
+                .items_center()
+                .rounded_md()
+                .border_1()
+                .border_color(p.primary)
+                .bg(p.primary.opacity(0.08))
+                .text_sm()
+                .child(div().flex_1().child(text))
+                .child(Button::new("update-view").outline().small().label(self.t(Msg::UpdateView)).on_click(
+                    cx.listener(move |_, _, _, cx| cx.open_url(&release.url)),
+                ))
+                .child(Button::new("update-dismiss").ghost().small().icon(IconName::X).on_click(
+                    cx.listener(|this, _, _, cx| {
+                        this.update = None;
+                        cx.notify();
+                    }),
+                )),
+        )
+    }
+
     fn error_banner(&self, p: Pal, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         let (msg, color, id) = match (&self.error, &self.notice) {
             (Some(e), _) => (e.clone(), p.danger, "dismiss-error"),
@@ -1185,6 +1215,19 @@ impl CashFlowApp {
             .on_click(cx.listener(move |this, _, window, cx| this.set_theme(theme, window, cx)))
         })
         .collect();
+        let update_options: Vec<_> = [(false, self.t(Msg::Off)), (true, self.t(Msg::On))]
+            .into_iter()
+            .map(|(on, label)| {
+                pill(
+                    SharedString::from(format!("updates-{on}")),
+                    label.to_string(),
+                    None,
+                    self.settings.check_updates == on,
+                    p,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| this.set_check_updates(on, cx)))
+            })
+            .collect();
         let hint = |text: &'static str| div().text_sm().text_color(p.muted_fg).child(text);
 
         let lang_card = card(p)
@@ -1201,6 +1244,12 @@ impl CashFlowApp {
             .child(heading(self.t(Msg::ThemeTitle)))
             .child(hint(self.t(Msg::ThemeHelp)))
             .child(h_flex().flex_wrap().gap_2().children(themes))
+            .into_any_element();
+        let updates_card = card(p)
+            .gap_3()
+            .child(heading(self.t(Msg::UpdatesTitle)))
+            .child(hint(self.t(Msg::UpdatesHelp)))
+            .child(h_flex().flex_wrap().gap_2().children(update_options))
             .into_any_element();
         let labels_card = card(p)
             .gap_3()
@@ -1226,7 +1275,7 @@ impl CashFlowApp {
                 .gap_4()
                 .flex_shrink_0()
                 .child(v_flex().w(px(560.0)).flex_shrink_0().child(lang_card))
-                .child(v_flex().w(px(560.0)).flex_shrink_0().gap_4().child(theme_card).child(labels_card))
+                .child(v_flex().w(px(560.0)).flex_shrink_0().gap_4().child(theme_card).child(updates_card).child(labels_card))
         } else {
             v_flex()
                 .w(px(560.0))
@@ -1234,6 +1283,7 @@ impl CashFlowApp {
                 .gap_4()
                 .child(lang_card)
                 .child(theme_card)
+                .child(updates_card)
                 .child(labels_card)
         };
         v_flex().id("settings-scroll").flex_1().min_h_0().overflow_y_scroll().p_6().child(body)
@@ -1416,6 +1466,7 @@ impl Render for CashFlowApp {
             .h_full()
             .bg(p.page)
             .child(self.header(short, p, cx))
+            .children(self.update_banner(p, cx))
             .children(self.error_banner(p, cx))
             .child(page);
 

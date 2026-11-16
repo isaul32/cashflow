@@ -34,9 +34,6 @@ Get the latest build from the **Releases** page:
 | `cashflow-<version>-linux-x64.AppImage` / `-arm64.AppImage` | Linux AppImage: make it executable and run |
 | `cashflow-<version>-linux-x64.deb` / `-arm64.deb` | Debian, Ubuntu and derivatives |
 
-Each file is also published under a fixed name without the version, for example
-`cashflow-windows-x64-setup.exe`, so `releases/latest/download/<fixed name>` always points at the newest build.
-
 The macOS app is not signed with an Apple developer certificate, so the first launch needs approval:
 try to open it once, then go to System Settings → Privacy & Security and click **Open Anyway**
 (or run `xattr -d com.apple.quarantine /Applications/CashFlow.app`).

@@ -14,8 +14,11 @@ npm run build     # output in dist/
 
 - `src/i18n/translations.ts`: all texts, one entry per language. A missing key fails the type check.
 - `src/components/Landing.astro`: the page; `src/layouts/Base.astro`: head, SEO tags, hreflang, JSON-LD.
-- `public/_redirects`: stable `/download/*` links. Point them at release assets once the release
-  workflow publishes version-less file names.
+- `tools/write-redirects.mjs`: runs after `astro build` and writes `dist/_redirects`, the stable
+  `/download/*` links. They point at the versioned files of the latest GitHub release (read from the
+  GitHub API at build time), so downloads keep the version in their name. If the API is unreachable
+  they fall back to the releases page. Set `GITHUB_TOKEN` in the build environment if the anonymous
+  rate limit is ever hit.
 - `public/_headers`: security and cache headers. `tools/make_og.py` regenerates `public/og.png`.
 - Screenshots live in `src/assets/screenshots/<lang>-<light|dark>.png` and are converted to WebP at build time.
 
@@ -29,6 +32,10 @@ npm run build     # output in dist/
 | `SITE_URL` (environment variable) | the final site URL, e.g. `https://cashflow.example.com` |
 
 `SITE_URL` is used for canonical URLs, hreflang links, the sitemap and the social image.
+
+The download links change only when the site is built. The release workflow therefore triggers a
+build after publishing a release: create a deploy hook (build hook) in the Cloudflare dashboard and
+store its URL as the GitHub repository secret `CF_DEPLOY_HOOK`.
 
 ## Screenshots
 

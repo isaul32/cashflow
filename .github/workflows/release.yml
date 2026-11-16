@@ -4,9 +4,9 @@ name: Release
 # "Run workflow" builds the same files as downloadable workflow artifacts
 # without publishing anything.
 #
-# Every file is published twice: with the version in its name, and under a fixed
-# name (cashflow-windows-x64-setup.exe, ...). The fixed names make permanent
-# links possible: https://github.com/<repo>/releases/latest/download/<fixed name>
+# Every file has the version in its name (cashflow-0.1.2-windows-x64-setup.exe).
+# After a release is published, the website is rebuilt through a Cloudflare deploy
+# hook (secret CF_DEPLOY_HOOK) so its download links point at the new version.
 on:
   push:
     tags: ["v*"]
@@ -165,14 +165,9 @@ jobs:
           path: packages
           merge-multiple: true
 
-      - name: Add fixed-name copies and checksums
+      - name: Add checksums
         run: |
-          version="${{ needs.meta.outputs.version }}"
           cd packages
-          # cashflow-0.1.0-windows-x64-setup.exe -> cashflow-windows-x64-setup.exe
-          for f in cashflow-"$version"-*; do
-            cp "$f" "${f/-$version-/-}"
-          done
           sha256sum cashflow-* > SHA256SUMS.txt
           ls -l
           cat SHA256SUMS.txt
@@ -192,3 +187,16 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "CashFlow ${{ github.ref_name }}" \
             --generate-notes
+
+      - name: Rebuild the website
+        # The site reads the latest release at build time, so it needs a new build
+        # now that this release is published. Skipped when the secret is not set.
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          CF_DEPLOY_HOOK: ${{ secrets.CF_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$CF_DEPLOY_HOOK" ]; then
+            echo "::warning::CF_DEPLOY_HOOK is not set; the website keeps the previous download links until its next build."
+            exit 0
+          fi
+          curl --fail --silent --show-error -X POST "$CF_DEPLOY_HOOK"

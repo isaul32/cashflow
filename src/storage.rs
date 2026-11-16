@@ -100,6 +100,14 @@ impl Storage {
         self.save(&self.month_path(key), data)
     }
 
+    /// Deletes a month's file; a month that has none is fine.
+    pub fn remove_month(&self, key: MonthKey) -> io::Result<()> {
+        match fs::remove_file(self.month_path(key)) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
+    }
+
     /// Months that have a data file, oldest first.
     pub fn list_months(&self) -> Vec<MonthKey> {
         let mut months: Vec<MonthKey> = fs::read_dir(&self.dir)

@@ -7,6 +7,7 @@ use gpui_kit::assets::{Assets, icon_assets};
 use gpui_kit::*;
 
 mod app;
+mod backup;
 mod brand;
 mod i18n;
 mod import;

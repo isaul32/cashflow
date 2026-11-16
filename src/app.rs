@@ -12,6 +12,7 @@ use gpui_kit::*;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::backup::{self, Backup};
 use crate::i18n::{Currency, Lang, Locale, Msg, Plural, SystemLocale};
 use crate::import::{self, ImportPlan};
 use crate::model::{Categories, CategoryId, Entry, Kind, MonthKey, parse_amount_cents};
@@ -91,6 +92,8 @@ pub struct CashFlowApp {
     notice: Option<SharedString>,
     /// A newer release found by the opt-in update check.
     update: Option<crate::update::Release>,
+    /// A parsed backup file waiting for the user to confirm the restore.
+    pending_restore: Option<Backup>,
     _subs: Vec<Subscription>,
 }
 
@@ -242,6 +245,7 @@ impl CashFlowApp {
             pending_import: None,
             notice: None,
             update: None,
+            pending_restore: None,
             _subs: subs,
         };
         app.refresh();
@@ -516,6 +520,11 @@ impl CashFlowApp {
 
     fn save_sankeymatic_file(&mut self, cx: &mut Context<Self>) {
         let (text, name) = self.export_payload();
+        self.save_text_file(text, name, cx);
+    }
+
+    /// Asks where to save and writes `text` there.
+    fn save_text_file(&mut self, text: String, name: String, cx: &mut Context<Self>) {
         let dir: PathBuf = directories::UserDirs::new()
             .and_then(|d| d.document_dir().map(|p| p.to_path_buf()))
             .unwrap_or_default();
@@ -539,6 +548,103 @@ impl CashFlowApp {
             .ok();
         })
         .detach();
+    }
+
+    // ---- backup and restore ----
+
+    fn save_backup(&mut self, cx: &mut Context<Self>) {
+        let Some(st) = &self.storage else { return };
+        match Backup::collect(st).to_json() {
+            Ok(json) => self.save_text_file(json, backup::file_name("backup", "json"), cx),
+            Err(e) => self.error = Some(self.tf(Msg::ErrSaveFileFailed, &[("error", &e)]).into()),
+        }
+        cx.notify();
+    }
+
+    fn export_csv(&mut self, cx: &mut Context<Self>) {
+        let Some(st) = &self.storage else { return };
+        let csv = Backup::collect(st).to_csv();
+        self.save_text_file(csv, backup::file_name("entries", "csv"), cx);
+    }
+
+    /// Lets the user pick a backup file and shows the confirmation; nothing changes yet.
+    fn open_backup_file(&mut self, cx: &mut Context<Self>) {
+        let rx = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some(self.t(Msg::PromptOpenBackup).into()),
+        });
+        cx.spawn(async move |this, cx| {
+            let Ok(Ok(Some(paths))) = rx.await else { return };
+            let Some(path) = paths.into_iter().next() else { return };
+            let parsed = std::fs::read_to_string(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|text| Backup::parse(&text));
+            this.update(cx, |this, cx| {
+                match parsed {
+                    Ok(backup) => {
+                        this.pending_restore = Some(backup);
+                        this.error = None;
+                        this.notice = None;
+                    }
+                    Err(e) => {
+                        this.pending_restore = None;
+                        this.error = Some(this.tf(Msg::ErrBackupInvalid, &[("error", &e)]).into());
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    fn cancel_restore(&mut self, cx: &mut Context<Self>) {
+        self.pending_restore = None;
+        cx.notify();
+    }
+
+    /// Replaces all data with the chosen backup after saving a copy of the current data.
+    fn confirm_restore(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(mut backup) = self.pending_restore.take() else { return };
+        let Some(st) = self.storage.clone() else { return };
+        // Whether this computer talks to GitHub is not something a file can switch on.
+        backup.settings.check_updates = self.settings.check_updates;
+        let result = backup::save_safety_copy(&st).and_then(|copy| backup.restore(&st).map(|()| copy));
+        match result {
+            Ok(copy) => {
+                self.reload_from_disk(window, cx);
+                let m = self.tf(Msg::NoticeRestored, &[("path", &copy.display().to_string())]);
+                self.error = None;
+                self.notice = Some(m.into());
+            }
+            Err(e) => {
+                let m = self.tf(Msg::ErrRestoreFailed, &[("error", &e.to_string())]);
+                self.error = Some(m.into());
+            }
+        }
+        cx.notify();
+    }
+
+    /// Reloads categories, the shown month and settings after the files changed.
+    fn reload_from_disk(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(st) = self.storage.clone() else { return };
+        self.cats = st.load_categories().value;
+        self.entries = st.load_month(self.month).value.entries;
+        self.next_entry_id = MonthData { entries: self.entries.clone() }.next_entry_id();
+        self.settings = st.load_settings().value;
+        self.settings.labels = self.settings.labels.sanitized();
+        self.category = self.cats.flatten_sorted(self.kind).first().map(|(_, c)| c.id);
+        self.editing = None;
+        self.editing_cat = None;
+        self.pending_import = None;
+        match self.settings.theme {
+            Some(choice) => Theme::change(theme_mode(choice), Some(window), cx),
+            None => Theme::sync_system_appearance(Some(window), cx),
+        }
+        self.clear_inputs(window, cx);
+        self.apply_locale(window, cx);
     }
 
     fn paste_import(&mut self, cx: &mut Context<Self>) {

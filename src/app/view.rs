@@ -1251,6 +1251,56 @@ impl CashFlowApp {
             .child(hint(self.t(Msg::UpdatesHelp)))
             .child(h_flex().flex_wrap().gap_2().children(update_options))
             .into_any_element();
+        let restore_prompt = self.pending_restore.as_ref().map(|b| {
+            let text = self.tf(
+                Msg::RestoreConfirm,
+                &[
+                    ("months", &self.lc.count(Plural::CountMonths, b.months.len())),
+                    ("categories", &self.lc.count(Plural::CountCategories, b.categories.items.len())),
+                    ("created", &b.created),
+                ],
+            );
+            v_flex()
+                .gap_2()
+                .p_3()
+                .rounded_md()
+                .border_1()
+                .border_color(p.danger)
+                .bg(p.danger.opacity(0.08))
+                .child(div().text_sm().child(text))
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            Button::new("restore-confirm").danger().label(self.t(Msg::RestoreReplace)).on_click(
+                                cx.listener(|this, _, window, cx| this.confirm_restore(window, cx)),
+                            ),
+                        )
+                        .child(Button::new("restore-cancel").outline().label(self.t(Msg::Cancel)).on_click(
+                            cx.listener(|this, _, _, cx| this.cancel_restore(cx)),
+                        )),
+                )
+        });
+        let backup_card = card(p)
+            .gap_3()
+            .child(heading(self.t(Msg::BackupTitle)))
+            .child(hint(self.t(Msg::BackupHelp)))
+            .child(
+                h_flex()
+                    .flex_wrap()
+                    .gap_2()
+                    .child(Button::new("backup-save").outline().label(self.t(Msg::BackupSave)).on_click(
+                        cx.listener(|this, _, _, cx| this.save_backup(cx)),
+                    ))
+                    .child(Button::new("backup-restore").outline().label(self.t(Msg::BackupRestore)).on_click(
+                        cx.listener(|this, _, _, cx| this.open_backup_file(cx)),
+                    ))
+                    .child(Button::new("export-csv").outline().label(self.t(Msg::ExportCsv)).on_click(
+                        cx.listener(|this, _, _, cx| this.export_csv(cx)),
+                    )),
+            )
+            .children(restore_prompt)
+            .into_any_element();
         let labels_card = card(p)
             .gap_3()
             .child(heading(self.t(Msg::ChartLabels)))
@@ -1274,7 +1324,7 @@ impl CashFlowApp {
                 .items_start()
                 .gap_4()
                 .flex_shrink_0()
-                .child(v_flex().w(px(560.0)).flex_shrink_0().child(lang_card))
+                .child(v_flex().w(px(560.0)).flex_shrink_0().gap_4().child(lang_card).child(backup_card))
                 .child(v_flex().w(px(560.0)).flex_shrink_0().gap_4().child(theme_card).child(updates_card).child(labels_card))
         } else {
             v_flex()
@@ -1285,6 +1335,7 @@ impl CashFlowApp {
                 .child(theme_card)
                 .child(updates_card)
                 .child(labels_card)
+                .child(backup_card)
         };
         v_flex().id("settings-scroll").flex_1().min_h_0().overflow_y_scroll().p_6().child(body)
     }

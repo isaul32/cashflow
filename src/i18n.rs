@@ -427,6 +427,65 @@ messages! {
         sv: "Följ systeminställningen eller välj ett tema.", de: "Der Systemeinstellung folgen oder ein Design wählen.",
         fr: "Suivre le réglage du système ou choisir un thème.", es: "Seguir el ajuste del sistema o elegir un tema.",
     }
+    BackupTitle {
+        en: "Backup and export", fi: "Varmuuskopio ja vienti", sv: "Säkerhetskopia och export",
+        de: "Sicherung und Export", fr: "Sauvegarde et export", es: "Copia de seguridad y exportación",
+    }
+    BackupHelp {
+        en: "Save all your data in one file and restore it later or on another computer. The CSV export lists every entry for use in a spreadsheet.",
+        fi: "Tallenna kaikki tietosi yhteen tiedostoon ja palauta ne myöhemmin tai toisella tietokoneella. CSV-vienti listaa kaikki merkinnät taulukkolaskentaa varten.",
+        sv: "Spara alla dina uppgifter i en fil och återställ dem senare eller på en annan dator. CSV-exporten listar alla poster för kalkylblad.",
+        de: "Speichere alle Daten in einer Datei und stelle sie später oder auf einem anderen Computer wieder her. Der CSV-Export listet alle Einträge für Tabellenkalkulationen auf.",
+        fr: "Enregistrez toutes vos données dans un fichier et restaurez-les plus tard ou sur un autre ordinateur. L'export CSV liste chaque entrée pour un tableur.",
+        es: "Guarda todos tus datos en un archivo y restáuralos más tarde o en otro ordenador. La exportación CSV lista cada movimiento para una hoja de cálculo.",
+    }
+    BackupSave {
+        en: "Save backup", fi: "Tallenna varmuuskopio", sv: "Spara säkerhetskopia", de: "Sicherung speichern",
+        fr: "Enregistrer la sauvegarde", es: "Guardar copia",
+    }
+    BackupRestore {
+        en: "Restore backup…", fi: "Palauta varmuuskopio…", sv: "Återställ säkerhetskopia…",
+        de: "Sicherung wiederherstellen…", fr: "Restaurer une sauvegarde…", es: "Restaurar copia…",
+    }
+    ExportCsv {
+        en: "Export CSV", fi: "Vie CSV", sv: "Exportera CSV", de: "CSV exportieren", fr: "Exporter en CSV",
+        es: "Exportar CSV",
+    }
+    PromptOpenBackup {
+        en: "Select a CashFlow backup", fi: "Valitse CashFlow-varmuuskopio", sv: "Välj en CashFlow-säkerhetskopia",
+        de: "CashFlow-Sicherung auswählen", fr: "Sélectionnez une sauvegarde CashFlow",
+        es: "Selecciona una copia de CashFlow",
+    }
+    RestoreConfirm {
+        en: "Restore {months} and {categories}, made {created}? This replaces all current data. A copy of the current data is saved first.",
+        fi: "Palautetaanko {months} ja {categories} (tehty {created})? Tämä korvaa kaikki nykyiset tiedot. Nykyisistä tiedoista tallennetaan ensin kopio.",
+        sv: "Återställa {months} och {categories}, gjord {created}? Detta ersätter alla nuvarande uppgifter. En kopia av nuvarande uppgifter sparas först.",
+        de: "{months} und {categories} vom {created} wiederherstellen? Alle aktuellen Daten werden ersetzt. Zuvor wird eine Kopie der aktuellen Daten gespeichert.",
+        fr: "Restaurer {months} et {categories}, créée le {created} ? Cela remplace toutes les données actuelles. Une copie des données actuelles est enregistrée d'abord.",
+        es: "¿Restaurar {months} y {categories}, hecha el {created}? Esto sustituye todos los datos actuales. Antes se guarda una copia de los datos actuales.",
+    }
+    RestoreReplace {
+        en: "Replace all data", fi: "Korvaa kaikki tiedot", sv: "Ersätt alla uppgifter", de: "Alle Daten ersetzen",
+        fr: "Remplacer toutes les données", es: "Sustituir todos los datos",
+    }
+    NoticeRestored {
+        en: "Backup restored. A copy of the previous data is in {path}",
+        fi: "Varmuuskopio palautettu. Aiempien tietojen kopio on tiedostossa {path}",
+        sv: "Säkerhetskopian återställdes. En kopia av de tidigare uppgifterna finns i {path}",
+        de: "Sicherung wiederhergestellt. Eine Kopie der bisherigen Daten liegt in {path}",
+        fr: "Sauvegarde restaurée. Une copie des données précédentes se trouve dans {path}",
+        es: "Copia restaurada. Una copia de los datos anteriores está en {path}",
+    }
+    ErrBackupInvalid {
+        en: "Not a valid CashFlow backup: {error}", fi: "Ei kelvollinen CashFlow-varmuuskopio: {error}",
+        sv: "Ingen giltig CashFlow-säkerhetskopia: {error}", de: "Keine gültige CashFlow-Sicherung: {error}",
+        fr: "Sauvegarde CashFlow invalide : {error}", es: "No es una copia de CashFlow válida: {error}",
+    }
+    ErrRestoreFailed {
+        en: "Restoring failed: {error}", fi: "Palautus epäonnistui: {error}",
+        sv: "Återställningen misslyckades: {error}", de: "Wiederherstellung fehlgeschlagen: {error}",
+        fr: "La restauration a échoué : {error}", es: "No se pudo restaurar: {error}",
+    }
     UpdatesTitle {
         en: "Updates", fi: "Päivitykset", sv: "Uppdateringar", de: "Updates", fr: "Mises à jour", es: "Actualizaciones",
     }
@@ -1035,6 +1094,11 @@ plurals! {
         sv: ("{n} kategori", "{n} kategorier"), de: ("{n} Kategorie", "{n} Kategorien"),
         fr: ("{n} catégorie", "{n} catégories"), es: ("{n} categoría", "{n} categorías"),
     }
+    CountMonths {
+        en: ("{n} month", "{n} months"), fi: ("{n} kuukausi", "{n} kuukautta"),
+        sv: ("{n} månad", "{n} månader"), de: ("{n} Monat", "{n} Monate"),
+        fr: ("{n} mois", "{n} mois"), es: ("{n} mes", "{n} meses"),
+    }
     CountEntries {
         en: ("{n} entry", "{n} entries"), fi: ("{n} merkintä", "{n} merkintää"),
         sv: ("{n} post", "{n} poster"), de: ("{n} Eintrag", "{n} Einträge"),
@@ -1152,7 +1216,10 @@ mod tests {
             for lang in Lang::ALL {
                 let (one, other) = plural.forms(lang);
                 assert!(one.contains("{n}") && other.contains("{n}"), "{plural:?} {lang:?}");
-                assert_ne!(one, other, "{plural:?} has identical forms in {lang:?}");
+                // "mois" is the same in the singular and the plural.
+                if (plural, lang) != (Plural::CountMonths, Lang::Fr) {
+                    assert_ne!(one, other, "{plural:?} has identical forms in {lang:?}");
+                }
             }
         }
     }

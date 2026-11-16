@@ -15,6 +15,9 @@ Built with Rust and [GPUI Kit](https://gpui-kit.com).
 - Savings or deficit shown automatically
 - Yearly view: all months of a year in one Sankey chart, a per-month breakdown, and previous years one click away
 - Automatic saving, plain JSON files
+- Backup and export in Settings: save everything (categories, all months, settings) in one file and
+  restore it later or on another computer, or export every entry as CSV for a spreadsheet. Restoring
+  replaces the current data, after saving a copy of it in the `backups` folder of the data folder
 - Light and dark theme
 - Optional update notice: off by default; when turned on in Settings, the app asks GitHub for the
   latest release at startup and shows a link if a newer version exists. Nothing is installed automatically

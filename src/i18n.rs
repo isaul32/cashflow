@@ -535,6 +535,10 @@ messages! {
         en: "No entries for {period}", fi: "Ei merkintöjä: {period}", sv: "Inga poster för {period}",
         de: "Keine Einträge für {period}", fr: "Aucune entrée pour {period}", es: "Sin movimientos en {period}",
     }
+    AddFirstEntry {
+        en: "Add the first entry", fi: "Lisää ensimmäinen merkintä", sv: "Lägg till första posten",
+        de: "Ersten Eintrag hinzufügen", fr: "Ajouter la première entrée", es: "Añadir la primera entrada",
+    }
     NoEntriesHint {
         en: "Add income and expenses on the left to see how your money flows.",
         fi: "Lisää tulot ja menot vasemmalla nähdäksesi, miten rahasi virtaavat.",
@@ -559,41 +563,16 @@ messages! {
     }
     Export { en: "Export", fi: "Vie", sv: "Exportera", de: "Export", fr: "Exporter", es: "Exportar" }
     Import { en: "Import", fi: "Tuo", sv: "Importera", de: "Import", fr: "Importer", es: "Importar" }
-    Copy { en: "Copy", fi: "Kopioi", sv: "Kopiera", de: "Kopieren", fr: "Copier", es: "Copiar" }
     Copied {
         en: "Copied ✓", fi: "Kopioitu ✓", sv: "Kopierat ✓", de: "Kopiert ✓", fr: "Copié ✓", es: "Copiado ✓",
     }
-    SaveTxt {
-        en: "Save .txt", fi: "Tallenna .txt", sv: "Spara .txt", de: "Als .txt speichern",
-        fr: "Enregistrer .txt", es: "Guardar .txt",
+    Clipboard {
+        en: "Clipboard", fi: "Leikepöytä", sv: "Urklipp", de: "Zwischenablage", fr: "Presse-papiers",
+        es: "Portapapeles",
     }
-    Paste { en: "Paste", fi: "Liitä", sv: "Klistra in", de: "Einfügen", fr: "Coller", es: "Pegar" }
-    OpenTxt {
-        en: "Open .txt", fi: "Avaa .txt", sv: "Öppna .txt", de: ".txt öffnen", fr: "Ouvrir .txt",
-        es: "Abrir .txt",
-    }
-    TipCopy {
-        en: "Copy as SankeyMATIC text", fi: "Kopioi SankeyMATIC-tekstinä",
-        sv: "Kopiera som SankeyMATIC-text", de: "Als SankeyMATIC-Text kopieren",
-        fr: "Copier au format texte SankeyMATIC", es: "Copiar como texto de SankeyMATIC",
-    }
-    TipSave {
-        en: "Save the SankeyMATIC text to a file", fi: "Tallenna SankeyMATIC-teksti tiedostoon",
-        sv: "Spara SankeyMATIC-texten i en fil", de: "SankeyMATIC-Text in eine Datei speichern",
-        fr: "Enregistrer le texte SankeyMATIC dans un fichier",
-        es: "Guardar el texto de SankeyMATIC en un archivo",
-    }
-    TipPaste {
-        en: "Import SankeyMATIC text from the clipboard", fi: "Tuo SankeyMATIC-teksti leikepöydältä",
-        sv: "Importera SankeyMATIC-text från urklipp", de: "SankeyMATIC-Text aus der Zwischenablage importieren",
-        fr: "Importer le texte SankeyMATIC depuis le presse-papiers",
-        es: "Importar texto de SankeyMATIC desde el portapapeles",
-    }
-    TipOpen {
-        en: "Import SankeyMATIC text from a file", fi: "Tuo SankeyMATIC-teksti tiedostosta",
-        sv: "Importera SankeyMATIC-text från en fil", de: "SankeyMATIC-Text aus einer Datei importieren",
-        fr: "Importer le texte SankeyMATIC depuis un fichier",
-        es: "Importar texto de SankeyMATIC desde un archivo",
+    FileTxt {
+        en: "File (.txt)", fi: "Tiedosto (.txt)", sv: "Fil (.txt)", de: "Datei (.txt)",
+        fr: "Fichier (.txt)", es: "Archivo (.txt)",
     }
     ImportTitle {
         en: "Import from SankeyMATIC", fi: "Tuo SankeyMATICista", sv: "Importera från SankeyMATIC",
@@ -712,7 +691,6 @@ messages! {
         sv: "När utgifterna överstiger inkomsterna", de: "Wenn die Ausgaben die Einnahmen übersteigen",
         fr: "Quand les dépenses dépassent les revenus", es: "Cuando los gastos superan los ingresos",
     }
-    Save { en: "Save", fi: "Tallenna", sv: "Spara", de: "Speichern", fr: "Enregistrer", es: "Guardar" }
     ResetDefaults {
         en: "Reset to defaults", fi: "Palauta oletukset", sv: "Återställ standardvärden",
         de: "Auf Standard zurücksetzen", fr: "Rétablir les valeurs par défaut",

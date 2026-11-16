@@ -1,6 +1,8 @@
 //! Views: sidebar navigation, page header, cards and lists.
 
 use super::*;
+use crate::model::name_key;
+use gpui_kit::component::menu::{DropdownMenu as _, PopupMenuItem};
 
 /// Theme colors copied out of the context so view code can freely borrow `cx`.
 #[derive(Clone, Copy)]
@@ -108,10 +110,79 @@ fn pill(
         .child(label)
 }
 
+/// Window-size facts the pages adapt to.
+#[derive(Clone, Copy)]
+struct Layout {
+    /// Narrow window (< 1000 px): icon sidebar, single-column pages.
+    compact: bool,
+    /// Window width in px.
+    width: f32,
+    /// Tall window (>= 900 px): lets pickers show more rows.
+    tall: bool,
+}
+
+impl Layout {
+    /// A fixed side column grows on wide windows so it keeps its share of the space.
+    fn side_w(self, base: f32) -> f32 {
+        if self.width >= 1700.0 {
+            base + 70.0
+        } else if self.width >= 1300.0 {
+            base + 30.0
+        } else {
+            base
+        }
+    }
+
+    /// Wide enough to lay settings cards out in two columns.
+    fn two_columns(self) -> bool {
+        self.width >= 1300.0
+    }
+}
+
+/// A row in a category tree picker, indented by depth.
+fn tree_row(id: SharedString, label: String, color: Option<u32>, depth: usize, selected: bool, p: Pal) -> Stateful<Div> {
+    let tint = color.map(hsla).unwrap_or(p.primary);
+    h_flex()
+        .id(id)
+        .gap_2()
+        .items_center()
+        .py_1()
+        .pr_2()
+        .pl(px(8.0 + 18.0 * depth as f32))
+        .rounded_md()
+        .text_sm()
+        .cursor_pointer()
+        .hover(|d| d.bg(p.muted))
+        .when(selected, |d| d.bg(tint.opacity(0.15)).font_weight(FontWeight::SEMIBOLD))
+        .when(depth == 0 && !selected, |d| d.font_weight(FontWeight::MEDIUM))
+        .child(match color {
+            Some(c) => div().size_2().flex_shrink_0().rounded_full().bg(hsla(c)),
+            None => div().size_2().flex_shrink_0(),
+        })
+        .child(div().flex_1().min_w_0().child(label))
+}
+
+/// Scrollable bordered box that holds a tree of `tree_row`s.
+fn tree_box(id: &'static str, max_h: Option<f32>, fill: bool, p: Pal) -> Stateful<Div> {
+    // `fill` makes the box take free height (at least 150 px); `max_h` caps its height.
+    v_flex()
+        .id(id)
+        .when_some(max_h, |d, h| d.max_h(px(h)))
+        .when(fill, |d| d.flex_1().min_h(px(150.0)))
+        .overflow_y_scroll()
+        // Scroll only this box while the pointer is over it, not the page around it.
+        .on_scroll(|_, _, cx| cx.stop_propagation())
+        .p_1()
+        .gap_0p5()
+        .rounded_md()
+        .border_1()
+        .border_color(p.border)
+}
+
 impl CashFlowApp {
     // ---- shell ----
 
-    fn sidebar(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+    fn sidebar(&self, compact: bool, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let nav = |page: Page, icon: IconName, label: &'static str, cx: &mut Context<Self>| {
             let active = self.page == page;
             div()
@@ -130,8 +201,9 @@ impl CashFlowApp {
                         .text_color(p.accent_fg)
                         .font_weight(FontWeight::SEMIBOLD)
                 })
+                .when(compact, |d| d.justify_center())
                 .child(Icon::new(icon).size_4())
-                .child(label)
+                .when(!compact, |d| d.child(label))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.page = page;
                     this.error = None;
@@ -146,22 +218,25 @@ impl CashFlowApp {
         let brand = h_flex()
             .gap_3()
             .items_center()
-            .px_2()
+            .when(compact, |d| d.justify_center())
+            .when(!compact, |d| d.px_2())
             .pb_4()
             .child(img(self.logo_for(cx)).size_9().flex_shrink_0())
-            .child(
-                v_flex()
-                    .flex_1()
-                    .min_w_0()
-                    .child(heading("CashFlow"))
-                    .child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::Tagline))),
-            );
+            .when(!compact, |d| {
+                d.child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .child(heading("CashFlow"))
+                        .child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::Tagline))),
+                )
+            });
 
         v_flex()
-            .w(px(220.0))
+            .w(px(if compact { 68.0 } else { 220.0 }))
             .h_full()
             .flex_shrink_0()
-            .p_4()
+            .p_3()
             .gap_1()
             .bg(p.sidebar)
             .border_r_1()
@@ -175,7 +250,7 @@ impl CashFlowApp {
             .child(div().flex_1())
     }
 
-    fn header(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+    fn header(&self, short: bool, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let (title, sub) = match self.page {
             Page::Overview => (self.t(Msg::NavOverview), self.t(Msg::SubOverview)),
             Page::Year => (self.t(Msg::NavYear), self.t(Msg::SubYear)),
@@ -188,19 +263,23 @@ impl CashFlowApp {
             Page::Year => Some(self.year_nav(p, cx).into_any_element()),
             _ => None,
         };
+        let title = div().text_xl().font_weight(FontWeight::SEMIBOLD).flex_shrink_0().child(title);
+        let sub = div().text_sm().text_color(p.muted_fg).truncate().child(sub);
         h_flex()
-            .px_6()
-            .py_4()
+            .gap_4()
             .items_center()
             .justify_between()
             .bg(p.bg)
             .border_b_1()
             .border_color(p.border)
-            .child(
-                v_flex()
-                    .child(div().text_xl().font_weight(FontWeight::SEMIBOLD).child(title))
-                    .child(div().text_sm().text_color(p.muted_fg).child(sub)),
-            )
+            // Low window: one slim row (title and subtitle side by side) to save height.
+            .when(short, |d| d.px_4().py_2())
+            .when(!short, |d| d.px_6().py_4())
+            .child(if short {
+                h_flex().gap_3().items_baseline().min_w_0().child(title).child(sub).into_any_element()
+            } else {
+                v_flex().child(title).child(sub).into_any_element()
+            })
             .children(right)
     }
 
@@ -314,7 +393,40 @@ impl CashFlowApp {
 
     // ---- overview ----
 
-    fn overview(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+    fn overview(&self, lay: Layout, p: Pal, cx: &mut Context<Self>) -> AnyElement {
+        let chart = |this: &Self, cx: &mut Context<Self>| -> AnyElement {
+            this.chart_card(
+                &this.data,
+                this.tf(Msg::NoEntriesFor, &[("period", &this.lc.month_inline(this.month))]),
+                this.t(Msg::NoEntriesHint),
+                true,
+                p,
+                cx,
+            )
+            .into_any_element()
+        };
+        if lay.compact {
+            // Small window: one scrolling column; the chart comes first, then the entry form and list.
+            return v_flex()
+                .id("overview-compact-scroll")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .gap_4()
+                .p_4()
+                .children(self.import_panel(p, cx))
+                .child(self.summary(&self.data, p))
+                .child(chart(self, cx))
+                .child(
+                    h_flex()
+                        .gap_4()
+                        .items_stretch()
+                        .flex_shrink_0()
+                        .child(v_flex().w(px(330.0)).flex_shrink_0().child(self.entry_form(lay.tall, true, p, cx)))
+                        .child(v_flex().flex_1().min_w_0().child(self.entry_list(p, cx))),
+                )
+                .into_any_element();
+        }
         h_flex()
             .flex_1()
             .min_h_0()
@@ -322,42 +434,39 @@ impl CashFlowApp {
             .p_6()
             .child(
                 v_flex()
-                    .w(px(380.0))
+                    .id("overview-left-scroll")
+                    .w(px(lay.side_w(350.0)))
                     .h_full()
                     .flex_shrink_0()
+                    .overflow_y_scroll()
                     .gap_4()
-                    .child(self.entry_form(p, cx))
+                    .child(self.entry_form(lay.tall, false, p, cx))
                     .child(self.entry_list(p, cx)),
             )
             .child(
                 v_flex()
+                    .id("overview-right-scroll")
+                    .overflow_y_scroll()
                     .flex_1()
                     .min_w_0()
                     .h_full()
                     .gap_4()
                     .children(self.import_panel(p, cx))
                     .child(self.summary(&self.data, p))
-                    .child(self.chart_card(
-                        &self.data,
-                        self.tf(Msg::NoEntriesFor, &[("period", &self.lc.month_inline(self.month))]),
-                        self.t(Msg::NoEntriesHint),
-                        true,
-                        p,
-                        cx,
-                    )),
+                    .child(chart(self, cx)),
             )
+            .into_any_element()
     }
 
-    fn entry_form(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+    fn entry_form(&self, tall: bool, stretch: bool, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let editing = self.editing.is_some();
         let pills: Vec<_> = self
             .cats
-            .flatten(self.kind)
+            .flatten_sorted(self.kind)
             .into_iter()
             .map(|(depth, c)| {
                 let id = c.id;
-                let label = format!("{}{}", "› ".repeat(depth), c.name);
-                pill(id_of("cat", id), label, Some(c.color), self.category == Some(id), p)
+                tree_row(id_of("cat", id), c.name.clone(), Some(c.color), depth, self.category == Some(id), p)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.category = Some(id);
                         cx.notify();
@@ -366,18 +475,22 @@ impl CashFlowApp {
             .collect();
         let no_categories = pills.is_empty();
 
+        // `stretch`: fill the height of the row the form sits in, and give the extra room to the
+        // category picker; otherwise the picker has a fixed cap.
         card(p)
+            .when(!stretch, |c| c.flex_shrink_0())
+            .when(stretch, |c| c.flex_1().flex_shrink_0())
             .gap_3()
             .child(heading(if editing { self.t(Msg::EditEntry) } else { self.t(Msg::AddEntry) }))
             .child(self.segmented(self.kind, false, p, cx))
-            .child(field(self.t(Msg::Category), p).child(if no_categories {
+            .child(field(self.t(Msg::Category), p).when(stretch, |f| f.flex_1().min_h_0()).child(if no_categories {
                 div()
                     .text_sm()
                     .text_color(p.muted_fg)
                     .child(self.t(Msg::NoCategoriesHint))
                     .into_any_element()
             } else {
-                h_flex().flex_wrap().gap_2().children(pills).into_any_element()
+                tree_box("entry-cat-tree", Some(if stretch { 260.0 } else if tall { 340.0 } else { 220.0 }), stretch, p).children(pills).into_any_element()
             }))
             .child(
                 h_flex()
@@ -414,11 +527,20 @@ impl CashFlowApp {
         let mut body = v_flex().gap_1();
         let mut count = 0;
         for kind in [Kind::Income, Kind::Expense] {
-            let items: Vec<&Entry> = self
+            let order: std::collections::HashMap<_, _> = self
+                .cats
+                .flatten_sorted(kind)
+                .into_iter()
+                .enumerate()
+                .map(|(i, (_, c))| (c.id, i))
+                .collect();
+            let mut items: Vec<&Entry> = self
                 .entries
                 .iter()
                 .filter(|e| self.cats.get(e.category_id).is_some_and(|c| c.kind == kind))
                 .collect();
+            // Grouped by category in the picker's alphabetical order, then by description.
+            items.sort_by_key(|e| (order.get(&e.category_id).copied(), name_key(&e.name), e.id));
             if items.is_empty() {
                 continue;
             }
@@ -444,8 +566,7 @@ impl CashFlowApp {
             );
         }
         card(p)
-            .flex_1()
-            .min_h_0()
+            .flex_shrink_0()
             .gap_2()
             .child(
                 h_flex()
@@ -454,7 +575,7 @@ impl CashFlowApp {
                     .child(heading(self.t(Msg::Entries)))
                     .child(div().text_xs().text_color(p.muted_fg).child(self.tf(Msg::CountThisMonth, &[("count", &count.to_string())]))),
             )
-            .child(div().id("entries-scroll").flex_1().min_h_0().overflow_y_scroll().child(body))
+            .child(body)
     }
 
     fn entry_row(&self, e: &Entry, kind: Kind, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
@@ -595,6 +716,7 @@ impl CashFlowApp {
             (self.t(Msg::Deficit), p.danger, self.t(Msg::SpendingExceeds).to_string())
         };
         h_flex()
+            .flex_wrap()
             .gap_4()
             .child(stat_card(
                 self.t(Msg::Income),
@@ -636,13 +758,28 @@ impl CashFlowApp {
                         .text_color(p.muted_fg)
                         .child(empty_hint),
                 )
+                .when(allow_import, |col| {
+                    col.child(
+                        div().mt_3().child(
+                            Button::new("add-first-entry")
+                                .primary()
+                                .label(self.t(Msg::AddFirstEntry))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.page = Page::Overview;
+                                    let handle = this.name_in.read(cx).focus_handle(cx);
+                                    window.focus(&handle, cx);
+                                    cx.notify();
+                                })),
+                        ),
+                    )
+                })
                 .into_any_element()
         } else {
             let nodes: Vec<FlowNode> = d.nodes.clone();
             let links = d.links.iter().map(|l| SankeyLink::new(l.source, l.target, l.value));
             div()
                 .flex_1()
-                .min_h_0()
+                .min_h(px(340.0))
                 .child(
                     SankeyChart::new(nodes, links)
                         // Left alignment keeps all direct children of the middle node in one
@@ -660,55 +797,58 @@ impl CashFlowApp {
         };
         card(p)
             .flex_1()
-            .min_h_0()
+            .min_h(px(430.0))
             .gap_3()
             .child(
                 h_flex()
+                    .flex_wrap()
                     .justify_between()
                     .items_center()
+                    .gap_2()
                     .child(heading(self.t(Msg::MoneyFlow)))
                     .child(
                         h_flex()
                             .gap_2()
                             .items_center()
-                            .when(!d.is_empty(), |row| {
-                                row.child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::Export)))
-                                    .child(
-                                        Button::new("export-copy")
-                                            .outline()
-                                            .small()
-                                            .label(if self.copied { self.t(Msg::Copied) } else { self.t(Msg::Copy) })
-                                            .tooltip(self.t(Msg::TipCopy))
-                                            .on_click(cx.listener(|this, _, _, cx| this.copy_sankeymatic(cx))),
-                                    )
-                                    .child(
-                                        Button::new("export-save")
-                                            .outline()
-                                            .small()
-                                            .label(self.t(Msg::SaveTxt))
-                                            .tooltip(self.t(Msg::TipSave))
-                                            .on_click(cx.listener(|this, _, _, cx| this.save_sankeymatic_file(cx))),
-                                    )
-                                    .when(allow_import, |row| row.child(div().w_px().h_5().mx_1().bg(p.border)))
+                            .when(!d.is_empty() && allow_import, |row| {
+                                let this = cx.entity();
+                                let (clip, file) = (self.t(Msg::Clipboard), self.t(Msg::FileTxt));
+                                row.child(
+                                    Button::new("export-menu")
+                                        .outline()
+                                        .small()
+                                        .label(if self.copied { self.t(Msg::Copied) } else { self.t(Msg::Export) })
+                                        .icon(IconName::ChevronDown)
+                                        .dropdown_menu(move |menu, _, _| {
+                                            let (a, b) = (this.clone(), this.clone());
+                                            menu.item(PopupMenuItem::new(clip).on_click(move |_, _, cx| {
+                                                a.update(cx, |t, cx| t.copy_sankeymatic(cx))
+                                            }))
+                                            .item(PopupMenuItem::new(file).on_click(move |_, _, cx| {
+                                                b.update(cx, |t, cx| t.save_sankeymatic_file(cx))
+                                            }))
+                                        }),
+                                )
                             })
                             .when(allow_import, |row| {
-                                row.child(div().text_xs().text_color(p.muted_fg).child(self.t(Msg::Import)))
-                                    .child(
-                                        Button::new("import-paste")
-                                            .outline()
-                                            .small()
-                                            .label(self.t(Msg::Paste))
-                                            .tooltip(self.t(Msg::TipPaste))
-                                            .on_click(cx.listener(|this, _, _, cx| this.paste_import(cx))),
-                                    )
-                                    .child(
-                                        Button::new("import-open")
-                                            .outline()
-                                            .small()
-                                            .label(self.t(Msg::OpenTxt))
-                                            .tooltip(self.t(Msg::TipOpen))
-                                            .on_click(cx.listener(|this, _, _, cx| this.open_import_file(cx))),
-                                    )
+                                let this = cx.entity();
+                                let (clip, file) = (self.t(Msg::Clipboard), self.t(Msg::FileTxt));
+                                row.child(
+                                    Button::new("import-menu")
+                                        .outline()
+                                        .small()
+                                        .label(self.t(Msg::Import))
+                                        .icon(IconName::ChevronDown)
+                                        .dropdown_menu(move |menu, _, _| {
+                                            let (a, b) = (this.clone(), this.clone());
+                                            menu.item(PopupMenuItem::new(clip).on_click(move |_, _, cx| {
+                                                a.update(cx, |t, cx| t.paste_import(cx))
+                                            }))
+                                            .item(PopupMenuItem::new(file).on_click(move |_, _, cx| {
+                                                b.update(cx, |t, cx| t.open_import_file(cx))
+                                            }))
+                                        }),
+                                )
                             }),
                     ),
             )
@@ -751,7 +891,27 @@ impl CashFlowApp {
             })
     }
 
-    fn year_page(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+    fn year_page(&self, lay: Layout, p: Pal, cx: &mut Context<Self>) -> AnyElement {
+        if lay.compact {
+            return v_flex()
+                .id("year-compact-scroll")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .gap_4()
+                .p_4()
+                .child(self.summary(&self.year_summary.data, p))
+                .child(self.chart_card(
+                    &self.year_summary.data,
+                    self.tf(Msg::NoEntriesFor, &[("period", &self.year_summary.year.to_string())]),
+                    self.t(Msg::NoEntriesYearHint),
+                    false,
+                    p,
+                    cx,
+                ))
+                .child(v_flex().h(px(640.0)).flex_shrink_0().child(self.year_months_card(p, cx)))
+                .into_any_element();
+        }
         h_flex()
             .flex_1()
             .min_h_0()
@@ -759,13 +919,15 @@ impl CashFlowApp {
             .p_6()
             .child(
                 v_flex()
-                    .w(px(380.0))
+                    .w(px(lay.side_w(380.0)))
                     .h_full()
                     .flex_shrink_0()
                     .child(self.year_months_card(p, cx)),
             )
             .child(
                 v_flex()
+                    .id("year-right-scroll")
+                    .overflow_y_scroll()
                     .flex_1()
                     .min_w_0()
                     .h_full()
@@ -780,6 +942,7 @@ impl CashFlowApp {
                         cx,
                     )),
             )
+            .into_any_element()
     }
 
     /// One row per month with income and expense bars; click to open the month.
@@ -886,7 +1049,7 @@ impl CashFlowApp {
 
     // ---- about ----
 
-    fn about_page(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+    fn about_page(&self, lay: Layout, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let row = |label: &'static str, value: String| {
             h_flex()
                 .gap_3()
@@ -908,8 +1071,8 @@ impl CashFlowApp {
             .map(|s| s.dir().display().to_string())
             .unwrap_or_else(|| self.t(Msg::NotAvailable).to_string());
 
-        h_flex().flex_1().min_h_0().items_start().p_6().child(
-            v_flex().w(px(560.0)).max_h_full().child(
+        v_flex().id("about-scroll").flex_1().min_h_0().overflow_y_scroll().p_6().child(
+            v_flex().w(px(if lay.two_columns() { 720.0 } else { 560.0 })).flex_shrink_0().child(
                 card(p)
                     .gap_4()
                     .child(
@@ -955,6 +1118,7 @@ impl CashFlowApp {
                                     .id("license-text")
                                     .max_h(px(200.0))
                                     .overflow_y_scroll()
+                                    .on_scroll(|_, _, cx| cx.stop_propagation())
                                     .p_3()
                                     .rounded_md()
                                     .bg(p.muted)
@@ -970,7 +1134,7 @@ impl CashFlowApp {
 
     // ---- settings ----
 
-    fn settings_page(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+    fn settings_page(&self, lay: Layout, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let languages: Vec<_> = std::iter::once((None, self.t(Msg::Automatic)))
             .chain(Lang::ALL.iter().map(|&l| (Some(l), l.native_name())))
             .map(|(lang, label)| {
@@ -1023,49 +1187,56 @@ impl CashFlowApp {
         .collect();
         let hint = |text: &'static str| div().text_sm().text_color(p.muted_fg).child(text);
 
-        h_flex().flex_1().min_h_0().items_start().p_6().child(
+        let lang_card = card(p)
+            .gap_3()
+            .child(heading(self.t(Msg::LanguageTitle)))
+            .child(hint(self.t(Msg::LanguageHelp)))
+            .child(h_flex().flex_wrap().gap_2().children(languages))
+            .child(heading(self.t(Msg::CurrencyTitle)))
+            .child(hint(self.t(Msg::CurrencyHelp)))
+            .child(h_flex().flex_wrap().gap_2().children(currencies))
+            .into_any_element();
+        let theme_card = card(p)
+            .gap_3()
+            .child(heading(self.t(Msg::ThemeTitle)))
+            .child(hint(self.t(Msg::ThemeHelp)))
+            .child(h_flex().flex_wrap().gap_2().children(themes))
+            .into_any_element();
+        let labels_card = card(p)
+            .gap_3()
+            .child(heading(self.t(Msg::ChartLabels)))
+            .child(hint(self.t(Msg::ChartLabelsHelp)))
+            .child(field(self.t(Msg::LabelTotal), p).child(Input::new(&self.total_in)))
+            .child(field(self.t(Msg::LabelSavings), p).child(Input::new(&self.savings_in)))
+            .child(field(self.t(Msg::LabelDeficit), p).child(Input::new(&self.deficit_in)))
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        Button::new("labels-reset").outline().label(self.t(Msg::ResetDefaults)).on_click(
+                            cx.listener(|this, _, window, cx| this.reset_labels(window, cx)),
+                        ),
+                    ),
+            )
+            .into_any_element();
+
+        let body = if lay.two_columns() {
+            h_flex()
+                .items_start()
+                .gap_4()
+                .flex_shrink_0()
+                .child(v_flex().w(px(560.0)).flex_shrink_0().child(lang_card))
+                .child(v_flex().w(px(560.0)).flex_shrink_0().gap_4().child(theme_card).child(labels_card))
+        } else {
             v_flex()
                 .w(px(560.0))
+                .flex_shrink_0()
                 .gap_4()
-                .child(
-                    card(p)
-                        .gap_3()
-                        .child(heading(self.t(Msg::LanguageTitle)))
-                        .child(hint(self.t(Msg::LanguageHelp)))
-                        .child(h_flex().flex_wrap().gap_2().children(languages))
-                        .child(heading(self.t(Msg::CurrencyTitle)))
-                        .child(hint(self.t(Msg::CurrencyHelp)))
-                        .child(h_flex().flex_wrap().gap_2().children(currencies)),
-                )
-                .child(
-                    card(p)
-                        .gap_3()
-                        .child(heading(self.t(Msg::ThemeTitle)))
-                        .child(hint(self.t(Msg::ThemeHelp)))
-                        .child(h_flex().flex_wrap().gap_2().children(themes)),
-                )
-                .child(
-                    card(p)
-                        .gap_3()
-                        .child(heading(self.t(Msg::ChartLabels)))
-                        .child(hint(self.t(Msg::ChartLabelsHelp)))
-                        .child(field(self.t(Msg::LabelTotal), p).child(Input::new(&self.total_in)))
-                        .child(field(self.t(Msg::LabelSavings), p).child(Input::new(&self.savings_in)))
-                        .child(field(self.t(Msg::LabelDeficit), p).child(Input::new(&self.deficit_in)))
-                        .child(
-                            h_flex()
-                                .gap_2()
-                                .child(Button::new("labels-save").primary().label(self.t(Msg::Save)).on_click(
-                                    cx.listener(|this, _, window, cx| this.save_labels(window, cx)),
-                                ))
-                                .child(
-                                    Button::new("labels-reset").outline().label(self.t(Msg::ResetDefaults)).on_click(
-                                        cx.listener(|this, _, window, cx| this.reset_labels(window, cx)),
-                                    ),
-                                ),
-                        ),
-                ),
-        )
+                .child(lang_card)
+                .child(theme_card)
+                .child(labels_card)
+        };
+        v_flex().id("settings-scroll").flex_1().min_h_0().overflow_y_scroll().p_6().child(body)
     }
 
     // ---- categories ----
@@ -1078,9 +1249,11 @@ impl CashFlowApp {
             .p_6()
             .child(
                 v_flex()
+                    .id("cat-form-scroll")
                     .w(px(380.0))
                     .h_full()
                     .flex_shrink_0()
+                    .overflow_y_scroll()
                     .child(self.category_form(p, cx)),
             )
             .child(self.category_list(p, cx))
@@ -1089,16 +1262,16 @@ impl CashFlowApp {
     fn category_form(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
         let editing = self.editing_cat.is_some();
 
-        let parents: Vec<_> = std::iter::once((None, self.t(Msg::NoParent).to_string(), None))
+        let parents: Vec<_> = std::iter::once((None, self.t(Msg::NoParent).to_string(), None, 0))
             .chain(
                 self.cats
                     .flatten(self.cat_kind)
                     .into_iter()
                     .filter(|(_, c)| self.editing_cat.is_none_or(|e| !self.cats.is_within(c.id, e)))
-                    .map(|(d, c)| (Some(c.id), format!("{}{}", "› ".repeat(d), c.name), Some(c.color))),
+                    .map(|(d, c)| (Some(c.id), c.name.clone(), Some(c.color), d)),
             )
-            .map(|(pid, label, color)| {
-                pill(id_of("parent", pid.unwrap_or(0)), label, color, self.cat_parent == pid, p)
+            .map(|(pid, label, color, depth)| {
+                tree_row(id_of("parent", pid.unwrap_or(0)), label, color, depth, self.cat_parent == pid, p)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.cat_parent = pid;
                         cx.notify();
@@ -1130,12 +1303,15 @@ impl CashFlowApp {
             .child(swatch_row(&PALETTE_MUTED, cx));
 
         card(p)
+            .h_full()
+            .min_h(px(580.0))
+            .flex_shrink_0()
             .gap_3()
             .child(heading(if editing { self.t(Msg::EditCategory) } else { self.t(Msg::NewCategory) }))
             .child(self.segmented(self.cat_kind, true, p, cx))
             .child(field(self.t(Msg::Name), p).child(Input::new(&self.cat_name_in)))
             .child(field(self.t(Msg::Color), p).child(swatches))
-            .child(field(self.t(Msg::Parent), p).child(h_flex().flex_wrap().gap_2().children(parents)))
+            .child(field(self.t(Msg::Parent), p).flex_1().min_h_0().child(tree_box("parent-tree", None, true, p).children(parents)))
             .child(
                 h_flex()
                     .gap_2()
@@ -1204,6 +1380,8 @@ impl CashFlowApp {
 fn stat_card(label: &'static str, value: String, accent: Hsla, note: String, p: Pal) -> impl IntoElement {
     card(p)
         .flex_1()
+        .min_w(px(130.0))
+        .p_3()
         .gap_1()
         .child(div().h_1().w_8().mb_1().rounded_full().bg(accent))
         .child(
@@ -1213,26 +1391,31 @@ fn stat_card(label: &'static str, value: String, accent: Hsla, note: String, p: 
                 .text_color(p.muted_fg)
                 .child(label.to_uppercase()),
         )
-        .child(div().text_2xl().font_weight(FontWeight::SEMIBOLD).text_color(accent).child(value))
+        .child(div().text_xl().font_weight(FontWeight::SEMIBOLD).text_color(accent).child(value))
         .child(div().text_xs().text_color(p.muted_fg).child(note))
 }
 
 impl Render for CashFlowApp {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = pal(cx);
+        let size = window.viewport_size();
+        let compact = size.width < px(1000.0);
+        let lay = Layout { compact, width: f32::from(size.width), tall: size.height >= px(900.0) };
+        // The slim header depends on the window height only; the width drives the sidebar and layout.
+        let short = window.viewport_size().height < px(720.0);
         let page = match self.page {
-            Page::Overview => self.overview(p, cx).into_any_element(),
-            Page::Year => self.year_page(p, cx).into_any_element(),
+            Page::Overview => self.overview(lay, p, cx),
+            Page::Year => self.year_page(lay, p, cx),
             Page::Categories => self.categories_page(p, cx).into_any_element(),
-            Page::Settings => self.settings_page(p, cx).into_any_element(),
-            Page::About => self.about_page(p, cx).into_any_element(),
+            Page::Settings => self.settings_page(lay, p, cx).into_any_element(),
+            Page::About => self.about_page(lay, p, cx).into_any_element(),
         };
         let main = v_flex()
             .flex_1()
             .min_w_0()
             .h_full()
             .bg(p.page)
-            .child(self.header(p, cx))
+            .child(self.header(short, p, cx))
             .children(self.error_banner(p, cx))
             .child(page);
 
@@ -1240,7 +1423,7 @@ impl Render for CashFlowApp {
             .size_full()
             .bg(p.bg)
             .text_color(p.fg)
-            .child(self.sidebar(p, cx))
+            .child(self.sidebar(compact, p, cx))
             .child(main)
     }
 }

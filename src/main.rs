@@ -60,14 +60,21 @@ fn main() {
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                 None,
-                size(px(1360.0), px(860.0)),
+                // Developer override (CASHFLOW_SIZE=WxH), used to capture screenshots.
+                std::env::var("CASHFLOW_SIZE")
+                    .ok()
+                    .and_then(|v| {
+                        let (w, h) = v.split_once('x')?;
+                        Some(size(px(w.parse().ok()?), px(h.parse().ok()?)))
+                    })
+                    .unwrap_or_else(|| size(px(1360.0), px(860.0))),
                 cx,
             ))),
             titlebar: Some(TitlebarOptions {
                 title: Some("CashFlow".into()),
                 ..Default::default()
             }),
-            window_min_size: Some(size(px(1040.0), px(660.0))),
+            window_min_size: Some(size(px(800.0), px(600.0))),
             ..Default::default()
         };
         gpui_kit::open_window(options, cx, |window, cx| {

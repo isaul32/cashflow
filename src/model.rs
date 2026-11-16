@@ -30,6 +30,11 @@ pub struct Entry {
     pub amount_cents: i64,
 }
 
+/// Case-insensitive sort key for names.
+pub fn name_key(name: &str) -> String {
+    name.to_lowercase()
+}
+
 /// Categories are shared between all months.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Categories {
@@ -103,10 +108,20 @@ impl Categories {
     /// Categories of `kind` in tree order (parents before their children)
     /// with their depth. Cycle-safe: each category appears at most once.
     pub fn flatten(&self, kind: Kind) -> Vec<(usize, &Category)> {
+        self.flatten_impl(kind, false)
+    }
+
+    /// Like [`Categories::flatten`], but siblings are sorted alphabetically.
+    pub fn flatten_sorted(&self, kind: Kind) -> Vec<(usize, &Category)> {
+        self.flatten_impl(kind, true)
+    }
+
+    fn flatten_impl(&self, kind: Kind, sorted: bool) -> Vec<(usize, &Category)> {
         fn go<'a>(
             cats: &'a Categories,
             c: &'a Category,
             depth: usize,
+            sorted: bool,
             seen: &mut Vec<CategoryId>,
             out: &mut Vec<(usize, &'a Category)>,
         ) {
@@ -115,14 +130,23 @@ impl Categories {
             }
             seen.push(c.id);
             out.push((depth, c));
-            for child in cats.children(c.id) {
-                go(cats, child, depth + 1, seen, out);
+            let mut kids: Vec<&Category> = cats.children(c.id).collect();
+            if sorted {
+                kids.sort_by_key(|k| name_key(&k.name));
             }
+            for child in kids {
+                go(cats, child, depth + 1, sorted, seen, out);
+            }
+        }
+        let mut roots: Vec<&Category> =
+            self.items.iter().filter(|c| c.kind == kind && c.parent.is_none()).collect();
+        if sorted {
+            roots.sort_by_key(|c| name_key(&c.name));
         }
         let mut out = Vec::new();
         let mut seen = Vec::new();
-        for c in self.items.iter().filter(|c| c.kind == kind && c.parent.is_none()) {
-            go(self, c, 0, &mut seen, &mut out);
+        for c in roots {
+            go(self, c, 0, sorted, &mut seen, &mut out);
         }
         out
     }
@@ -332,6 +356,22 @@ pub fn parse_amount_cents(input: &str, decimal: char) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flatten_sorted_orders_siblings_alphabetically() {
+        let mut c = Categories { items: Vec::new(), next_id: 1 };
+        let zeta = c.add("Zeta", Kind::Expense, None, 1);
+        c.add("Äiti", Kind::Expense, None, 1);
+        let alpha = c.add("alpha", Kind::Expense, None, 1);
+        c.add("beta", Kind::Expense, Some(zeta), 1);
+        c.add("Alku", Kind::Expense, Some(zeta), 1);
+        c.add("child", Kind::Expense, Some(alpha), 1);
+        let names: Vec<_> =
+            c.flatten_sorted(Kind::Expense).iter().map(|(d, x)| format!("{d}{}", x.name)).collect();
+        assert_eq!(names, ["0alpha", "1child", "0Zeta", "1Alku", "1beta", "0Äiti"]);
+        // The plain order stays the creation order.
+        assert_eq!(c.flatten(Kind::Expense)[0].1.name, "Zeta");
+    }
 
     #[test]
     fn update_edits_and_rejects_cycles() {

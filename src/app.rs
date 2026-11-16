@@ -178,10 +178,20 @@ impl CashFlowApp {
                     this.submit_category(window, cx);
                 }
             }),
-        ];
+        ]
+        .into_iter()
+        // The chart label fields save by themselves when left or confirmed with Enter.
+        .chain([&total_in, &savings_in, &deficit_in].map(|field| {
+            cx.subscribe_in(field, window, |this, _, ev: &InputEvent, window, cx| {
+                if matches!(ev, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+                    this.autosave_labels(window, cx);
+                }
+            })
+        }))
+        .collect::<Vec<_>>();
 
         let next_entry_id = MonthData { entries: entries.clone() }.next_entry_id();
-        let category = cats.flatten(Kind::Expense).first().map(|(_, c)| c.id);
+        let category = cats.flatten_sorted(Kind::Expense).first().map(|(_, c)| c.id);
         let mut app = CashFlowApp {
             data: SankeyData::default(),
             storage,
@@ -203,7 +213,14 @@ impl CashFlowApp {
             cats,
             entries,
             next_entry_id,
-            page: Page::Overview,
+            // Developer override, like CASHFLOW_MONTH above.
+            page: match std::env::var("CASHFLOW_PAGE").as_deref() {
+                Ok("year") => Page::Year,
+                Ok("categories") => Page::Categories,
+                Ok("settings") => Page::Settings,
+                Ok("about") => Page::About,
+                _ => Page::Overview,
+            },
             kind: Kind::Expense,
             category,
             editing: None,
@@ -406,6 +423,20 @@ impl CashFlowApp {
     // ---- chart labels ----
 
     /// Saves the label fields (after cleaning them up) and redraws the chart.
+    /// Saves the chart labels if they differ from the stored ones. Otherwise only tidies the
+    /// fields (e.g. trailing spaces) without touching the settings file.
+    fn autosave_labels(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let typed = Labels {
+            total: self.total_in.read(cx).value().to_string(),
+            savings: self.savings_in.read(cx).value().to_string(),
+            deficit: self.deficit_in.read(cx).value().to_string(),
+        }
+        .sanitized();
+        if typed != self.settings.labels {
+            self.save_labels(window, cx);
+        }
+    }
+
     fn save_labels(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let labels = Labels {
             total: self.total_in.read(cx).value().to_string(),
@@ -535,7 +566,7 @@ impl CashFlowApp {
             &PALETTE,
         );
         self.clear_inputs(window, cx);
-        self.category = self.cats.flatten(self.kind).first().map(|(_, c)| c.id);
+        self.category = self.cats.flatten_sorted(self.kind).first().map(|(_, c)| c.id);
         self.error = None;
         self.commit();
         let period = self.lc.month_inline(self.month);
@@ -634,7 +665,7 @@ impl CashFlowApp {
 
     fn set_kind(&mut self, kind: Kind, cx: &mut Context<Self>) {
         self.kind = kind;
-        self.category = self.cats.flatten(kind).first().map(|(_, c)| c.id);
+        self.category = self.cats.flatten_sorted(kind).first().map(|(_, c)| c.id);
         cx.notify();
     }
 

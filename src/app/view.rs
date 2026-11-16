@@ -244,6 +244,7 @@ impl CashFlowApp {
             .child(brand)
             .child(nav(Page::Overview, IconName::LayoutDashboard, self.t(Msg::NavOverview), cx))
             .child(nav(Page::Year, IconName::CalendarDays, self.t(Msg::NavYear), cx))
+            .child(nav(Page::Recurring, IconName::Repeat, self.t(Msg::NavRecurring), cx))
             .child(nav(Page::Categories, IconName::Tags, self.t(Msg::NavCategories), cx))
             .child(nav(Page::Settings, IconName::Settings, self.t(Msg::NavSettings), cx))
             .child(nav(Page::About, IconName::Info, self.t(Msg::NavAbout), cx))
@@ -254,6 +255,7 @@ impl CashFlowApp {
         let (title, sub) = match self.page {
             Page::Overview => (self.t(Msg::NavOverview), self.t(Msg::SubOverview)),
             Page::Year => (self.t(Msg::NavYear), self.t(Msg::SubYear)),
+            Page::Recurring => (self.t(Msg::NavRecurring), self.t(Msg::SubRecurring)),
             Page::Categories => (self.t(Msg::NavCategories), self.t(Msg::SubCategories)),
             Page::Settings => (self.t(Msg::NavSettings), self.t(Msg::SubSettings)),
             Page::About => (self.t(Msg::NavAbout), self.t(Msg::SubAbout)),
@@ -284,9 +286,17 @@ impl CashFlowApp {
     }
 
     fn month_nav(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+        // The shortcut sits left of the selector, so the selector stays put when it appears.
         h_flex()
             .gap_2()
             .items_center()
+            .when(self.month != MonthKey::current(), |row| {
+                row.child(Button::new("month-today").outline().small().label(self.t(Msg::Today)).on_click(
+                    cx.listener(|this, _, window, cx| {
+                        this.switch_month(MonthKey::current(), window, cx)
+                    }),
+                ))
+            })
             .child(
                 h_flex()
                     .items_center()
@@ -314,13 +324,6 @@ impl CashFlowApp {
                         }),
                     )),
             )
-            .when(self.month != MonthKey::current(), |row| {
-                row.child(Button::new("month-today").outline().small().label(self.t(Msg::Today)).on_click(
-                    cx.listener(|this, _, window, cx| {
-                        this.switch_month(MonthKey::current(), window, cx)
-                    }),
-                ))
-            })
     }
 
     /// Shown when the opt-in update check found a newer release.
@@ -533,6 +536,10 @@ impl CashFlowApp {
                             .child(Input::new(&self.amount_in)),
                     ),
             )
+            .child(h_flex().child(
+                pill("repeat-toggle".into(), self.t(Msg::RepeatMonthly).to_string(), None, self.repeat, p)
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_repeat(cx))),
+            ))
             .child(
                 h_flex()
                     .gap_2()
@@ -891,6 +898,11 @@ impl CashFlowApp {
         h_flex()
             .gap_2()
             .items_center()
+            .when(self.year != MonthKey::current().year, |row| {
+                row.child(Button::new("year-today").outline().small().label(self.t(Msg::ThisYear)).on_click(
+                    cx.listener(|this, _, _, cx| this.switch_year(MonthKey::current().year, cx)),
+                ))
+            })
             .child(
                 h_flex()
                     .items_center()
@@ -914,11 +926,6 @@ impl CashFlowApp {
                         cx.listener(|this, _, _, cx| this.switch_year(this.year + 1, cx)),
                     )),
             )
-            .when(self.year != MonthKey::current().year, |row| {
-                row.child(Button::new("year-today").outline().small().label(self.t(Msg::ThisYear)).on_click(
-                    cx.listener(|this, _, _, cx| this.switch_year(MonthKey::current().year, cx)),
-                ))
-            })
     }
 
     fn year_page(&self, lay: Layout, p: Pal, cx: &mut Context<Self>) -> AnyElement {
@@ -1257,7 +1264,7 @@ impl CashFlowApp {
                 &[
                     ("months", &self.lc.count(Plural::CountMonths, b.months.len())),
                     ("categories", &self.lc.count(Plural::CountCategories, b.categories.items.len())),
-                    ("created", &b.created),
+                    ("created", &b.saved_at),
                 ],
             );
             v_flex()
@@ -1338,6 +1345,79 @@ impl CashFlowApp {
                 .child(backup_card)
         };
         v_flex().id("settings-scroll").flex_1().min_h_0().overflow_y_scroll().p_6().child(body)
+    }
+
+    // ---- recurring entries ----
+
+    fn recurring_page(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
+        let now = MonthKey::current();
+        let mut rows = v_flex().gap_1();
+        for r in &self.recurring.items {
+            let id = r.id;
+            let cat = self.cats.get(r.category_id);
+            let color = cat.map_or(0x888888, |c| c.color);
+            let cat_name = cat.map(|c| c.name.clone()).unwrap_or_default();
+            let (sign, amount_color) = match cat.map(|c| c.kind) {
+                Some(Kind::Income) => ("+", p.success),
+                _ => (self.lc.minus(), p.fg),
+            };
+            let from = self.lc.month_inline(r.start);
+            let span = match r.end {
+                None => self.tf(Msg::RecurringSince, &[("from", &from)]),
+                Some(end) => self.tf(Msg::RecurringRange, &[("from", &from), ("to", &self.lc.month_inline(end))]),
+            };
+            let (title, subtitle) = if r.name.is_empty() {
+                (cat_name, span)
+            } else {
+                (r.name.clone(), format!("{cat_name} · {span}"))
+            };
+            let active = r.is_active(now);
+            rows = rows.child(
+                h_flex()
+                    .id(id_of("rec", id))
+                    .gap_3()
+                    .items_center()
+                    .px_2()
+                    .py_1()
+                    .rounded_md()
+                    .hover(|d| d.bg(p.muted))
+                    .child(div().size_3().flex_shrink_0().rounded_full().bg(hsla(color)))
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .child(div().text_sm().font_weight(FontWeight::MEDIUM).child(title))
+                            .child(div().text_xs().text_color(p.muted_fg).child(subtitle)),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(amount_color)
+                            .child(format!("{sign}{}", self.lc.money(r.amount_cents))),
+                    )
+                    .when(active, |row| {
+                        row.child(Button::new(id_of("rec-stop", id)).ghost().small().label(self.t(Msg::RecurringStop)).on_click(
+                            cx.listener(move |this, _, _, cx| this.stop_recurring(id, cx)),
+                        ))
+                    })
+                    .child(Button::new(id_of("rec-del", id)).ghost().small().icon(IconName::X).on_click(
+                        cx.listener(move |this, _, _, cx| this.delete_recurring(id, cx)),
+                    )),
+            );
+        }
+        if self.recurring.items.is_empty() {
+            rows = rows.child(
+                div().py_6().text_sm().text_center().text_color(p.muted_fg).child(self.t(Msg::RecurringEmpty)),
+            );
+        }
+        v_flex().id("recurring-scroll").flex_1().min_h_0().overflow_y_scroll().p_6().child(
+            v_flex()
+                .max_w(px(720.0))
+                .gap_4()
+                .child(div().text_sm().text_color(p.muted_fg).child(self.t(Msg::RecurringHelp)))
+                .child(card(p).gap_2().child(rows)),
+        )
     }
 
     // ---- categories ----
@@ -1507,6 +1587,7 @@ impl Render for CashFlowApp {
         let page = match self.page {
             Page::Overview => self.overview(lay, p, cx),
             Page::Year => self.year_page(lay, p, cx),
+            Page::Recurring => self.recurring_page(p, cx).into_any_element(),
             Page::Categories => self.categories_page(p, cx).into_any_element(),
             Page::Settings => self.settings_page(lay, p, cx).into_any_element(),
             Page::About => self.about_page(lay, p, cx).into_any_element(),

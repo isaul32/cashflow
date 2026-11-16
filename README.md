@@ -11,11 +11,13 @@ Built with Rust and [GPUI Kit](https://gpui-kit.com).
 ## Features
 
 - Add, edit and delete income and expense entries per month
+- Recurring entries (rent, salary, subscriptions): tick "Repeat every month" when adding an entry and it
+  is added to each later month when you open it and it is still empty. Manage them on the Recurring page
 - Your own categories with colors and optional sub-categories (the chart gains a level per nesting)
 - Savings or deficit shown automatically
 - Yearly view: all months of a year in one Sankey chart, a per-month breakdown, and previous years one click away
 - Automatic saving, plain JSON files
-- Backup and export in Settings: save everything (categories, all months, settings) in one file and
+- Backup and export in Settings: save all your data (categories, recurring entries, all months) in one file and
   restore it later or on another computer, or export every entry as CSV for a spreadsheet. Restoring
   replaces the current data, after saving a copy of it in the `backups` folder of the data folder
 - Light and dark theme
@@ -51,13 +53,19 @@ Verify downloads with `SHA256SUMS.txt`.
 | Portable | `data\` next to `cashflow.exe` (enabled by the `portable` marker file in the zip) |
 | Any | The directory in the `BUDGET_DATA_DIR` environment variable, if set |
 
-`categories.json` holds the categories, `settings.json` your language, currency and chart labels,
-and each month is stored as `YYYY-MM.json`. Uninstalling does not delete your data.
+All your data (categories, recurring entries and every month) is in one file, `data.json`. The
+previous save is kept as `data.json.bak`. `settings.json` holds the preferences of this computer: language,
+currency, theme and chart labels. Uninstalling does not delete your data.
+
+The data file has a schema version. When a new release changes the layout, the app upgrades an older file
+automatically and keeps the original as `data.v<N>.json.bak`; a file from a newer release is never overwritten.
+Data folders from before 0.1.4 (`categories.json` plus one `YYYY-MM.json` per month) are imported once and
+the old files are moved to `legacy/`.
 
 ## Try it with demo data
 
 `docs/demo-data/` has sample data for September 2025 to November 2026 (categories and
-entries), the same data as the screenshot. Point the app at a copy of it:
+entries, in one `data.json`), the same data as the screenshot. Point the app at a copy of it:
 
 ```bash
 cp -r docs/demo-data /tmp/cashflow-demo

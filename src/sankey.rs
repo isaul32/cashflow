@@ -424,11 +424,11 @@ mod tests {
         use gpui_kit::component::plot::shape::{Sankey, SankeyAlign, SankeyLink};
 
         let st = Storage::new(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/demo-data"));
-        let cats = st.load_categories().value;
+        let cats = st.load_categories();
         let mut all = Vec::new();
         let mut sets: Vec<(String, Vec<Entry>)> = Vec::new();
         for key in st.list_months() {
-            let e = st.load_month(key).value.entries;
+            let e = st.load_month(key).entries;
             all.extend(e.clone());
             sets.push((key.to_string(), e));
         }

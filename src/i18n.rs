@@ -427,17 +427,58 @@ messages! {
         sv: "Följ systeminställningen eller välj ett tema.", de: "Der Systemeinstellung folgen oder ein Design wählen.",
         fr: "Suivre le réglage du système ou choisir un thème.", es: "Seguir el ajuste del sistema o elegir un tema.",
     }
+    NavRecurring {
+        en: "Recurring", fi: "Toistuvat", sv: "Återkommande", de: "Wiederkehrend", fr: "Récurrents", es: "Recurrentes",
+    }
+    SubRecurring {
+        en: "Entries that are added to every month automatically",
+        fi: "Merkinnät, jotka lisätään automaattisesti joka kuukausi",
+        sv: "Poster som läggs till automatiskt varje månad",
+        de: "Einträge, die jeden Monat automatisch hinzugefügt werden",
+        fr: "Entrées ajoutées automatiquement chaque mois",
+        es: "Movimientos que se añaden automáticamente cada mes",
+    }
+    RepeatMonthly {
+        en: "Repeat every month", fi: "Toista joka kuukausi", sv: "Upprepa varje månad",
+        de: "Jeden Monat wiederholen", fr: "Répéter chaque mois", es: "Repetir cada mes",
+    }
+    RecurringHelp {
+        en: "A recurring entry is added to a month when you open it and it is still empty, from the month the entry starts. Months you do not open are left alone, and entries you delete from a month stay deleted. To change an amount, stop the entry and add a new one.",
+        fi: "Toistuva merkintä lisätään kuukauteen, kun avaat sen ja se on vielä tyhjä, alkukuukaudesta lähtien. Kuukausiin, joita et avaa, ei kosketa, ja kuukaudesta poistamasi merkinnät eivät palaa. Summan muuttamiseksi lopeta merkintä ja lisää uusi.",
+        sv: "En återkommande post läggs till i en månad när du öppnar den och den fortfarande är tom, från startmånaden. Månader du inte öppnar lämnas ifred, och poster du tar bort från en månad kommer inte tillbaka. Avsluta posten och lägg till en ny för att ändra beloppet.",
+        de: "Ein wiederkehrender Eintrag wird einem Monat hinzugefügt, wenn du ihn öffnest und er noch leer ist, ab dem Startmonat. Monate, die du nicht öffnest, bleiben unberührt, und aus einem Monat gelöschte Einträge kommen nicht zurück. Um einen Betrag zu ändern, beende den Eintrag und lege einen neuen an.",
+        fr: "Une entrée récurrente est ajoutée à un mois quand vous l'ouvrez et qu'il est encore vide, à partir de son mois de début. Les mois que vous n'ouvrez pas restent intacts, et les entrées supprimées d'un mois ne reviennent pas. Pour changer un montant, arrêtez l'entrée et ajoutez-en une nouvelle.",
+        es: "Un movimiento recurrente se añade a un mes cuando lo abres y aún está vacío, desde su mes de inicio. Los meses que no abras quedan intactos, y los movimientos que borres de un mes no vuelven. Para cambiar un importe, detén el movimiento y añade uno nuevo.",
+    }
+    RecurringEmpty {
+        en: "No recurring entries yet. Tick \"Repeat every month\" when you add an entry.",
+        fi: "Ei vielä toistuvia merkintöjä. Valitse merkintää lisätessäsi \"Toista joka kuukausi\".",
+        sv: "Inga återkommande poster ännu. Välj \"Upprepa varje månad\" när du lägger till en post.",
+        de: "Noch keine wiederkehrenden Einträge. Wähle beim Hinzufügen eines Eintrags \"Jeden Monat wiederholen\".",
+        fr: "Aucune entrée récurrente. Cochez \"Répéter chaque mois\" en ajoutant une entrée.",
+        es: "Aún no hay movimientos recurrentes. Marca \"Repetir cada mes\" al añadir un movimiento.",
+    }
+    RecurringSince {
+        en: "From {from}", fi: "Alkaen {from}", sv: "Från {from}", de: "Ab {from}", fr: "Depuis {from}", es: "Desde {from}",
+    }
+    RecurringRange {
+        en: "{from} – {to}", fi: "{from} – {to}", sv: "{from} – {to}", de: "{from} – {to}", fr: "{from} – {to}",
+        es: "{from} – {to}",
+    }
+    RecurringStop {
+        en: "Stop", fi: "Lopeta", sv: "Avsluta", de: "Beenden", fr: "Arrêter", es: "Detener",
+    }
     BackupTitle {
         en: "Backup and export", fi: "Varmuuskopio ja vienti", sv: "Säkerhetskopia och export",
         de: "Sicherung und Export", fr: "Sauvegarde et export", es: "Copia de seguridad y exportación",
     }
     BackupHelp {
-        en: "Save all your data in one file and restore it later or on another computer. The CSV export lists every entry for use in a spreadsheet.",
-        fi: "Tallenna kaikki tietosi yhteen tiedostoon ja palauta ne myöhemmin tai toisella tietokoneella. CSV-vienti listaa kaikki merkinnät taulukkolaskentaa varten.",
-        sv: "Spara alla dina uppgifter i en fil och återställ dem senare eller på en annan dator. CSV-exporten listar alla poster för kalkylblad.",
-        de: "Speichere alle Daten in einer Datei und stelle sie später oder auf einem anderen Computer wieder her. Der CSV-Export listet alle Einträge für Tabellenkalkulationen auf.",
-        fr: "Enregistrez toutes vos données dans un fichier et restaurez-les plus tard ou sur un autre ordinateur. L'export CSV liste chaque entrée pour un tableur.",
-        es: "Guarda todos tus datos en un archivo y restáuralos más tarde o en otro ordenador. La exportación CSV lista cada movimiento para una hoja de cálculo.",
+        en: "Save all your data in one file and restore it later or on another computer. Settings stay on this computer. The CSV export lists every entry for use in a spreadsheet.",
+        fi: "Tallenna kaikki tietosi yhteen tiedostoon ja palauta ne myöhemmin tai toisella tietokoneella. Asetukset pysyvät tällä tietokoneella. CSV-vienti listaa kaikki merkinnät taulukkolaskentaa varten.",
+        sv: "Spara alla dina uppgifter i en fil och återställ dem senare eller på en annan dator. Inställningarna stannar på den här datorn. CSV-exporten listar alla poster för kalkylblad.",
+        de: "Speichere alle Daten in einer Datei und stelle sie später oder auf einem anderen Computer wieder her. Die Einstellungen bleiben auf diesem Computer. Der CSV-Export listet alle Einträge für Tabellenkalkulationen auf.",
+        fr: "Enregistrez toutes vos données dans un fichier et restaurez-les plus tard ou sur un autre ordinateur. Les réglages restent sur cet ordinateur. L'export CSV liste chaque entrée pour un tableur.",
+        es: "Guarda todos tus datos en un archivo y restáuralos más tarde o en otro ordenador. Los ajustes se quedan en este ordenador. La exportación CSV lista cada movimiento para una hoja de cálculo.",
     }
     BackupSave {
         en: "Save backup", fi: "Tallenna varmuuskopio", sv: "Spara säkerhetskopia", de: "Sicherung speichern",
@@ -490,12 +531,12 @@ messages! {
         en: "Updates", fi: "Päivitykset", sv: "Uppdateringar", de: "Updates", fr: "Mises à jour", es: "Actualizaciones",
     }
     UpdatesHelp {
-        en: "When on, the app checks GitHub for a newer release at startup. Only a generic request is sent, nothing is downloaded or installed, and it is off by default.",
-        fi: "Kun päällä, sovellus tarkistaa käynnistyksessä GitHubista uudemman julkaisun. Lähetetään vain yleinen pyyntö, mitään ei ladata tai asenneta, ja asetus on oletuksena pois päältä.",
-        sv: "När det är på kontrollerar appen GitHub efter en nyare version vid start. Bara en generell förfrågan skickas, inget laddas ned eller installeras, och det är av som standard.",
-        de: "Wenn aktiv, prüft die App beim Start auf GitHub, ob eine neuere Version vorliegt. Es wird nur eine allgemeine Anfrage gesendet, nichts heruntergeladen oder installiert; standardmäßig aus.",
-        fr: "Si activé, l'application cherche une version plus récente sur GitHub au démarrage. Seule une requête générique est envoyée, rien n'est téléchargé ni installé, et c'est désactivé par défaut.",
-        es: "Si está activado, la aplicación busca una versión más reciente en GitHub al iniciar. Solo se envía una solicitud genérica, no se descarga ni instala nada, y está desactivado por defecto.",
+        en: "When on, the app checks GitHub for a newer release at startup.",
+        fi: "Kun päällä, sovellus tarkistaa käynnistyksessä GitHubista uudemman julkaisun.",
+        sv: "När det är på kontrollerar appen GitHub efter en nyare version vid start.",
+        de: "Wenn aktiv, prüft die App beim Start auf GitHub, ob eine neuere Version vorliegt.",
+        fr: "Si activé, l'application cherche une version plus récente sur GitHub au démarrage.",
+        es: "Si está activado, la aplicación busca una versión más reciente en GitHub al iniciar.",
     }
     On { en: "On", fi: "Päällä", sv: "På", de: "An", fr: "Activé", es: "Activado" }
     Off { en: "Off", fi: "Pois", sv: "Av", de: "Aus", fr: "Désactivé", es: "Desactivado" }

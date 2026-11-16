@@ -9,9 +9,11 @@ use gpui_kit::*;
 mod app;
 mod backup;
 mod brand;
+mod data;
 mod i18n;
 mod import;
 mod model;
+mod recurring;
 mod sankey;
 mod settings;
 mod storage;
@@ -19,7 +21,7 @@ mod update;
 mod year;
 
 // Icons used by the app that are not in the default component bundle.
-icon_assets!(ExtraIcons, [CalendarDays, Tags, X]);
+icon_assets!(ExtraIcons, [CalendarDays, Repeat, Tags, X]);
 
 /// The default component icons plus [`ExtraIcons`].
 struct AppAssets;

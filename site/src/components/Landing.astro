@@ -374,6 +374,7 @@ const clientData = {
 
     detect().then(({ os, mobile, arm }) => {
       if (mobile || !os) return; // keep the default "get the desktop app" button
+      if (os === 'mac') document.querySelector('.window')?.classList.add('is-mac');
       const label = data.downloadFor.replace('{os}', data.osNames[os]);
       document.getElementById('hero-label')!.textContent = label;
       document.getElementById('hero-note')!.textContent = data.osNotes[os];

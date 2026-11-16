@@ -354,6 +354,11 @@ code {
   padding: 11px 14px;
   background: var(--surface-2);
   border-bottom: 1px solid var(--border);
+  /* Windows and Linux put the window buttons on the right, macOS on the left. */
+  justify-content: flex-end;
+}
+.window.is-mac .window-bar {
+  justify-content: flex-start;
 }
 .window-bar span {
   width: 11px;

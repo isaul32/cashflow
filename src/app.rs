@@ -180,6 +180,8 @@ impl CashFlowApp {
             }),
         ]
         .into_iter()
+        // Keep the brand colors on top of whatever theme the library switches to.
+        .chain([cx.observe_global::<Theme>(|_, cx| crate::brand::apply(cx))])
         // The chart label fields save by themselves when left or confirmed with Enter.
         .chain([&total_in, &savings_in, &deficit_in].map(|field| {
             cx.subscribe_in(field, window, |this, _, ev: &InputEvent, window, cx| {
@@ -240,6 +242,7 @@ impl CashFlowApp {
             _subs: subs,
         };
         app.refresh();
+        crate::brand::apply(cx);
         if let Some(choice) = app.settings.theme {
             Theme::change(theme_mode(choice), Some(window), cx);
         }
@@ -247,6 +250,7 @@ impl CashFlowApp {
             let mode = if theme == "dark" { ThemeMode::Dark } else { ThemeMode::Light };
             Theme::change(mode, Some(window), cx);
         }
+        crate::brand::apply(cx);
         app
     }
 

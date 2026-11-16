@@ -37,7 +37,7 @@ fn pal(cx: &App) -> Pal {
         sidebar_border: t.sidebar_border,
         accent: t.sidebar_accent,
         accent_fg: t.sidebar_accent_foreground,
-        page: t.muted.opacity(0.5),
+        page: crate::brand::page(t.is_dark()),
     }
 }
 

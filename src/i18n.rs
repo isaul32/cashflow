@@ -427,6 +427,30 @@ messages! {
         sv: "Följ systeminställningen eller välj ett tema.", de: "Der Systemeinstellung folgen oder ein Design wählen.",
         fr: "Suivre le réglage du système ou choisir un thème.", es: "Seguir el ajuste del sistema o elegir un tema.",
     }
+    MenuHide {
+        en: "Hide CashFlow", fi: "Piilota CashFlow", sv: "Dölj CashFlow", de: "CashFlow ausblenden",
+        fr: "Masquer CashFlow", es: "Ocultar CashFlow",
+    }
+    MenuHideOthers {
+        en: "Hide Others", fi: "Piilota muut", sv: "Dölj övriga", de: "Andere ausblenden",
+        fr: "Masquer les autres", es: "Ocultar otros",
+    }
+    MenuShowAll {
+        en: "Show All", fi: "Näytä kaikki", sv: "Visa alla", de: "Alle anzeigen", fr: "Tout afficher",
+        es: "Mostrar todo",
+    }
+    MenuQuit {
+        en: "Quit CashFlow", fi: "Lopeta CashFlow", sv: "Avsluta CashFlow", de: "CashFlow beenden",
+        fr: "Quitter CashFlow", es: "Salir de CashFlow",
+    }
+    MenuServices {
+        en: "Services", fi: "Palvelut", sv: "Tjänster", de: "Dienste", fr: "Services", es: "Servicios",
+    }
+    MenuWindow { en: "Window", fi: "Ikkuna", sv: "Fönster", de: "Fenster", fr: "Fenêtre", es: "Ventana" }
+    MenuMinimize {
+        en: "Minimize", fi: "Pienennä", sv: "Minimera", de: "Minimieren", fr: "Réduire", es: "Minimizar",
+    }
+    MenuZoom { en: "Zoom", fi: "Suurenna", sv: "Zooma", de: "Zoomen", fr: "Agrandir", es: "Ampliar" }
     NavRecurring {
         en: "Recurring", fi: "Toistuvat", sv: "Återkommande", de: "Wiederkehrend", fr: "Récurrents", es: "Recurrentes",
     }

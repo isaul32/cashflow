@@ -1602,11 +1602,21 @@ impl Render for CashFlowApp {
             .children(self.error_banner(p, cx))
             .child(page);
 
-        h_flex()
+        let content = h_flex()
+            .flex_1()
+            .min_h_0()
+            .w_full()
+            .bg(p.bg)
+            .child(self.sidebar(compact, p, cx))
+            .child(main);
+
+        // macOS: the window has no native title bar background, so a themed bar is drawn above
+        // everything. The traffic lights (close, minimize, zoom) sit inside it.
+        v_flex()
             .size_full()
             .bg(p.bg)
             .text_color(p.fg)
-            .child(self.sidebar(compact, p, cx))
-            .child(main)
+            .when(cfg!(target_os = "macos"), |root| root.child(TitleBar::new().bg(p.sidebar)))
+            .child(content)
     }
 }

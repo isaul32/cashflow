@@ -4,6 +4,7 @@
 use std::borrow::Cow;
 
 use gpui_kit::assets::{Assets, icon_assets};
+use gpui_kit::component::TitleBar;
 use gpui_kit::*;
 
 mod app;
@@ -12,6 +13,7 @@ mod brand;
 mod data;
 mod i18n;
 mod import;
+mod menu;
 mod model;
 mod recurring;
 mod sankey;
@@ -62,6 +64,21 @@ fn main() {
 
     gpui_kit::application().with_assets(AppAssets).run(|cx| {
         gpui_kit::init(cx);
+        menu::init(cx);
+        // Closing the last window ends the app, also on macOS (where it would stay in the Dock).
+        cx.on_window_closed(|cx, _| {
+            if cx.windows().is_empty() {
+                cx.quit();
+            }
+        })
+        .detach();
+        // macOS: the app draws its own title bar (see CashFlowApp::render), so the window
+        // gets the transparent title bar the component expects, with the traffic lights inside.
+        let (base, titlebar) = if cfg!(target_os = "macos") {
+            (TitleBar::window_options(), TitleBar::title_bar_options())
+        } else {
+            (WindowOptions::default(), TitlebarOptions::default())
+        };
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                 None,
@@ -75,12 +92,9 @@ fn main() {
                     .unwrap_or_else(|| size(px(1360.0), px(860.0))),
                 cx,
             ))),
-            titlebar: Some(TitlebarOptions {
-                title: Some("CashFlow".into()),
-                ..Default::default()
-            }),
+            titlebar: Some(TitlebarOptions { title: Some("CashFlow".into()), ..titlebar }),
             window_min_size: Some(size(px(800.0), px(600.0))),
-            ..Default::default()
+            ..base
         };
         gpui_kit::open_window(options, cx, |window, cx| {
             cx.new(|cx| app::CashFlowApp::new(window, cx))

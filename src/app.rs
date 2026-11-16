@@ -5,7 +5,7 @@ use gpui_kit::component::chart::SankeyChart;
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::plot::shape::{SankeyAlign, SankeyLink};
 use gpui_kit::assets::IconName;
-use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, Theme, ThemeMode, h_flex, v_flex};
+use gpui_kit::component::{ActiveTheme as _, Icon, Sizable as _, Theme, ThemeMode, TitleBar, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
@@ -272,6 +272,7 @@ impl CashFlowApp {
             Theme::change(mode, Some(window), cx);
         }
         crate::brand::apply(cx);
+        crate::menu::set(cx, &app.lc);
         if app.settings.check_updates {
             app.check_for_updates(cx);
         }
@@ -331,6 +332,7 @@ impl CashFlowApp {
     fn apply_locale(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.lc = Locale::resolve(self.settings.language, self.settings.currency, &self.system);
         let lc = self.lc;
+        crate::menu::set(cx, &lc);
         let amount_placeholder = lc.plain_amount(0);
         self.name_in.update(cx, |s, cx| s.set_placeholder(lc.t(Msg::PlaceholderNote), window, cx));
         self.amount_in.update(cx, |s, cx| s.set_placeholder(amount_placeholder, window, cx));

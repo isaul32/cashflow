@@ -1,7 +1,6 @@
 //! Persistence in the data folder.
 //!
-//! - `data.json`: everything the user recorded (categories, recurring entries,
-//!   months), see [`crate::data`]. The whole document is kept in memory and
+//! - `data.json`: everything the user recorded (categories and months), see [`crate::data`]. The whole document is kept in memory and
 //!   written as one unit, so a change that touches several months can never be
 //!   saved half way.
 //! - `settings.json`: preferences of this computer (language, theme, ...). It is
@@ -29,7 +28,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::data::{DataError, DataFile, Migration};
 use crate::model::{Categories, Entry, MonthKey};
-use crate::recurring::RecurringStore;
 use crate::settings::Settings;
 
 const DATA_FILE: &str = "data.json";
@@ -90,16 +88,24 @@ impl FileLock {
         loop {
             match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(_) => return Ok(FileLock(path)),
-                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-                    let stale = fs::metadata(&path)
-                        .and_then(|m| m.modified())
-                        .ok()
-                        .and_then(|t| t.elapsed().ok())
-                        .is_some_and(|age| age > Self::STALE);
+                // "Already exists" means someone holds the lock. Windows says "access denied" instead
+                // while the previous holder's lock file is still being deleted: wait for that too.
+                Err(e) if matches!(e.kind(), io::ErrorKind::AlreadyExists | io::ErrorKind::PermissionDenied) => {
+                    let held = e.kind() == io::ErrorKind::AlreadyExists;
+                    let stale = held
+                        && fs::metadata(&path)
+                            .and_then(|m| m.modified())
+                            .ok()
+                            .and_then(|t| t.elapsed().ok())
+                            .is_some_and(|age| age > Self::STALE);
                     if stale {
                         let _ = fs::remove_file(&path);
                     } else if started.elapsed() > Self::GIVE_UP {
-                        return Err(io::Error::new(io::ErrorKind::TimedOut, "another CashFlow process is writing the data"));
+                        return Err(if held {
+                            io::Error::new(io::ErrorKind::TimedOut, "another CashFlow process is writing the data")
+                        } else {
+                            e
+                        });
                     } else {
                         std::thread::sleep(Duration::from_millis(10));
                     }
@@ -204,11 +210,16 @@ impl Storage {
                 if tx.is_closed() {
                     return;
                 }
-                let (data_now, settings_now) =
-                    (stamp_of(&storage.dir.join(DATA_FILE)), stamp_of(&storage.settings_path()));
-                let (known_data, known_settings) = {
+                // Looked at together, under the lock: this process is not in the middle of writing, so a
+                // difference means that someone else wrote.
+                let (known_data, known_settings, data_now, settings_now) = {
                     let state = storage.lock();
-                    (state.stamp, state.settings_stamp)
+                    (
+                        state.stamp,
+                        state.settings_stamp,
+                        stamp_of(&storage.dir.join(DATA_FILE)),
+                        stamp_of(&storage.settings_path()),
+                    )
                 };
                 // Each change is reported once, even if the receiver is slow to act on it.
                 if data_now != known_data && data_now != told_data {
@@ -241,16 +252,22 @@ impl Storage {
     }
 
     pub fn load_settings(&self) -> Loaded<Settings> {
+        let mut state = self.lock();
+        // The stamp is taken first: a change made while reading then still counts as one.
+        let stamp = stamp_of(&self.settings_path());
         let loaded = load_settings_file(&self.settings_path());
-        self.lock().settings_stamp = stamp_of(&self.settings_path());
+        state.settings_stamp = stamp;
         loaded
     }
 
     pub fn save_settings(&self, settings: &Settings) -> io::Result<()> {
         fs::create_dir_all(&self.dir)?;
         let path = self.settings_path();
-        write_atomic(&path, &serde_json::to_string_pretty(settings).map_err(io::Error::other)?)?;
-        self.lock().settings_stamp = stamp_of(&path);
+        let json = serde_json::to_string_pretty(settings).map_err(io::Error::other)?;
+        // Held while writing, so the watcher never sees the new file before the stamp is updated.
+        let mut state = self.lock();
+        write_atomic(&path, &json)?;
+        state.settings_stamp = stamp_of(&path);
         Ok(())
     }
 
@@ -267,14 +284,6 @@ impl Storage {
 
     pub fn save_categories(&self, cats: &Categories) -> io::Result<()> {
         self.update(|d| d.categories = cats.clone())
-    }
-
-    pub fn load_recurring(&self) -> RecurringStore {
-        self.lock().data.recurring.clone()
-    }
-
-    pub fn save_recurring(&self, store: &RecurringStore) -> io::Result<()> {
-        self.update(|d| d.recurring = store.clone())
     }
 
     /// A month that has no entries is the same as a month that was never saved.
@@ -494,7 +503,18 @@ fn write_data(dir: &Path, data: &mut DataFile) -> io::Result<Stamp> {
 fn write_atomic(path: &Path, text: &str) -> io::Result<()> {
     let tmp = path.with_extension("json.tmp");
     fs::write(&tmp, text)?;
-    fs::rename(&tmp, path)
+    // On Windows a file that something else has open at that very moment (a reader, a virus
+    // scanner) cannot be replaced yet. That passes in a moment, so try again for a little while.
+    let mut attempts = 0;
+    loop {
+        match fs::rename(&tmp, path) {
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied && attempts < 50 => {
+                attempts += 1;
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            result => return result,
+        }
+    }
 }
 
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
@@ -863,5 +883,28 @@ mod tests {
         // Once the receiver is gone the thread stops by itself (it cannot be observed, so just drop it).
         drop(events);
         let _ = fs::remove_dir_all(a.dir());
+    }
+
+    #[test]
+    fn a_data_file_from_the_time_of_recurring_entries_still_opens() {
+        use serde_json::Value;
+        // Version 0.1.4 saved recurring entries in the data file. They are gone now, but the file opens
+        // and the entries that they had already added are untouched.
+        let dir = temp_dir("had-recurring");
+        fs::create_dir_all(&dir).unwrap();
+        let mut file: Value = serde_json::from_str(&DataFile::default().to_json().unwrap()).unwrap();
+        file["recurring"] = serde_json::json!({"items": [{"id": 1, "category_id": 3, "name": "Rent", "amount_cents": 80000,
+            "start": {"year": 2026, "month": 9}, "end": null, "applied": []}]});
+        file["months"]["2026-10"] = serde_json::json!({"entries": [{"id": 1, "category_id": 3, "name": "Rent", "amount_cents": 80000}]});
+        fs::write(dir.join("data.json"), file.to_string()).unwrap();
+
+        let s = Storage::new(&dir);
+        assert!(s.take_warnings().is_empty());
+        assert_eq!(s.load_month(month(2026, 10)).entries.len(), 1);
+        s.save_month(month(2026, 11), &entry_in(1, "new")).unwrap();
+        let saved: Value = serde_json::from_str(&fs::read_to_string(dir.join("data.json")).unwrap()).unwrap();
+        assert!(saved.get("recurring").is_none(), "the old templates are dropped on the next save");
+        assert_eq!(saved["months"]["2026-10"]["entries"][0]["name"], "Rent");
+        let _ = fs::remove_dir_all(&dir);
     }
 }

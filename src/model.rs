@@ -30,6 +30,17 @@ pub struct Entry {
     pub amount_cents: i64,
 }
 
+/// The entries of `source` as the start of another month: the same categories, notes and
+/// amounts, numbered from 1. Entries whose category no longer exists are left out.
+pub fn copied_entries(source: &[Entry], cats: &Categories) -> Vec<Entry> {
+    source
+        .iter()
+        .filter(|e| cats.get(e.category_id).is_some())
+        .enumerate()
+        .map(|(i, e)| Entry { id: i as u64 + 1, ..e.clone() })
+        .collect()
+}
+
 /// Case-insensitive sort key for names.
 pub fn name_key(name: &str) -> String {
     name.to_lowercase()
@@ -63,22 +74,30 @@ impl Default for Categories {
     }
 }
 
+/// Names that starter categories used to have: (id of the starter category, old name). A category
+/// that still has such a name counts as unedited, so it moves to the current name with the others.
+const FORMER_DEFAULT_NAMES: &[(CategoryId, &str)] =
+    &[(5, "Liikenne"), (4, "Alimentation"), (4, "Alimentación")];
+
+
 impl Categories {
-    /// The starter categories with names in `lang` (used on a first run).
+    /// The starter categories with names in `lang` (used on a first run): two kinds of income, and
+    /// housing, food, transport, leisure and health, with sub-categories under housing and food.
     pub fn defaults_for(lang: crate::i18n::Lang) -> Categories {
         use crate::i18n::Msg;
         let mut c = Categories { items: Vec::new(), next_id: 1 };
-        for (msg, color) in [(Msg::DefSalary, 0x4CAF50), (Msg::DefOtherIncome, 0x8BC34A)] {
-            c.add(msg.text(lang), Kind::Income, None, color);
-        }
-        for (msg, color) in [
-            (Msg::DefHousing, 0x3F51B5),
-            (Msg::DefFood, 0xFF9800),
-            (Msg::DefTransport, 0x03A9F4),
-            (Msg::DefLeisure, 0x9C27B0),
-        ] {
-            c.add(msg.text(lang), Kind::Expense, None, color);
-        }
+        // The ids are fixed (1 to 10): an unedited starter category is recognised by its id.
+        let name = |msg: Msg| msg.text(lang);
+        c.add(name(Msg::DefSalary), Kind::Income, None, 0x4CAF50);
+        c.add(name(Msg::DefOtherIncome), Kind::Income, None, 0x8BC34A);
+        let housing = c.add(name(Msg::DefHousing), Kind::Expense, None, 0x3F51B5);
+        let food = c.add(name(Msg::DefFood), Kind::Expense, None, 0xFF9800);
+        c.add(name(Msg::DefTransport), Kind::Expense, None, 0x03A9F4);
+        c.add(name(Msg::DefLeisure), Kind::Expense, None, 0x9C27B0);
+        c.add(name(Msg::DefRent), Kind::Expense, Some(housing), 0x5C6BC0);
+        c.add(name(Msg::DefGroceries), Kind::Expense, Some(food), 0xFFB74D);
+        c.add(name(Msg::DefEatingOut), Kind::Expense, Some(food), 0xFF8A65);
+        c.add(name(Msg::DefHealth), Kind::Expense, None, 0xE91E63);
         c
     }
 
@@ -96,8 +115,9 @@ impl Categories {
             let current = &self.items[pos];
             let unedited = current.kind == new.kind
                 && current.color == new.color
-                && current.parent.is_none()
-                && all.iter().any(|names| names.get(new.id).is_some_and(|d| d.name == current.name));
+                && current.parent == new.parent
+                && (all.iter().any(|names| names.get(new.id).is_some_and(|d| d.name == current.name))
+                    || FORMER_DEFAULT_NAMES.iter().any(|(id, old)| *id == new.id && *old == current.name));
             if !unedited || current.name == new.name {
                 continue;
             }
@@ -514,7 +534,7 @@ mod tests {
         assert!(cats.translate_defaults(Lang::Fi));
         assert_eq!(names(&cats), names(&Categories::defaults_for(Lang::Fi)));
         // The ids stay, so entries keep pointing at the same categories.
-        assert_eq!(cats.items.iter().map(|c| c.id).collect::<Vec<_>>(), vec![1, 2, 3, 4, 5, 6]);
+        assert_eq!(cats.items.iter().map(|c| c.id).collect::<Vec<_>>(), (1..=10).collect::<Vec<_>>());
         // Nothing left to do the second time, and any language can be reached from any other.
         assert!(!cats.translate_defaults(Lang::Fi));
         for from in Lang::ALL {
@@ -565,6 +585,92 @@ mod tests {
         let mut cats = Categories::defaults_for(Lang::En);
         cats.items.retain(|c| c.name != "Leisure");
         cats.translate_defaults(Lang::De);
-        assert_eq!(cats.items.len(), 5);
+        assert_eq!(cats.items.len(), 9);
+    }
+
+    #[test]
+    fn a_copied_month_has_the_same_entries_with_fresh_numbers() {
+        let cats = Categories::default();
+        let source = vec![
+            Entry { id: 7, category_id: 4, name: "Lunch".into(), amount_cents: 990 },
+            Entry { id: 9, category_id: 999, name: "Orphan".into(), amount_cents: 1 },
+            Entry { id: 12, category_id: 3, name: String::new(), amount_cents: 80000 },
+        ];
+        let copy = copied_entries(&source, &cats);
+        assert_eq!(copy.len(), 2, "an entry of a category that is gone is not copied");
+        assert_eq!(copy[0], Entry { id: 1, category_id: 4, name: "Lunch".into(), amount_cents: 990 });
+        assert_eq!(copy[1], Entry { id: 2, category_id: 3, name: String::new(), amount_cents: 80000 });
+        assert!(copied_entries(&[], &cats).is_empty());
+    }
+
+    #[test]
+    fn a_starter_category_with_a_former_default_name_counts_as_unedited() {
+        use crate::i18n::Lang;
+        // Finnish used to call Transport "Liikenne". Data made then is still a starter category.
+        let mut cats = Categories::defaults_for(Lang::Fi);
+        let transport = cats.items.iter().position(|c| c.id == 5).unwrap();
+        assert_eq!(cats.items[transport].name, "Liikkuminen");
+        cats.items[transport].name = "Liikenne".to_string();
+        assert!(cats.translate_defaults(Lang::Fi), "it moves to the current name");
+        assert_eq!(cats.items[transport].name, "Liikkuminen");
+
+        // And it follows the language like the others.
+        cats.items[transport].name = "Liikenne".to_string();
+        assert!(cats.translate_defaults(Lang::En));
+        assert_eq!(cats.items[transport].name, "Transport");
+
+        // A name that was never a default is an edit.
+        cats.translate_defaults(Lang::Fi); // everything is Finnish again
+        cats.items[transport].name = "Liikennekulut".to_string();
+        assert!(!cats.translate_defaults(Lang::Fi));
+        assert_eq!(cats.items[transport].name, "Liikennekulut");
+    }
+
+    #[test]
+    fn the_starter_categories_are_the_ones_of_the_screenshots() {
+        use crate::i18n::Lang;
+        let cats = Categories::defaults_for(Lang::En);
+        let line = |c: &Category| {
+            let parent = c.parent.and_then(|p| cats.get(p)).map_or(String::new(), |p| format!("{} / ", p.name));
+            format!("{}{} ({:?})", parent, c.name, c.kind)
+        };
+        assert_eq!(
+            cats.items.iter().map(line).collect::<Vec<_>>(),
+            vec![
+                "Salary (Income)",
+                "Other income (Income)",
+                "Housing (Expense)",
+                "Food (Expense)",
+                "Transport (Expense)",
+                "Leisure (Expense)",
+                "Housing / Rent (Expense)",
+                "Food / Groceries (Expense)",
+                "Food / Eating out (Expense)",
+                "Health (Expense)",
+            ]
+        );
+        // Every language has all of them, with different names for each, and the next one made gets a fresh number.
+        for lang in Lang::ALL {
+            let c = Categories::defaults_for(lang);
+            assert_eq!(c.items.len(), 10, "{lang:?}");
+            let mut names: Vec<&str> = c.items.iter().map(|c| c.name.as_str()).collect();
+            names.sort_unstable();
+            names.dedup();
+            assert_eq!(names.len(), 10, "{lang:?} has two categories with the same name");
+        }
+        let mut c = Categories::defaults_for(Lang::Fi);
+        assert_eq!(c.add("Lemmikit", Kind::Expense, None, 0x1), 11);
+    }
+
+    #[test]
+    fn sub_categories_of_the_starter_set_move_with_their_parent_only_while_unedited() {
+        use crate::i18n::Lang;
+        let mut cats = Categories::defaults_for(Lang::En);
+        let rent = cats.items.iter().position(|c| c.name == "Rent").unwrap();
+        cats.items[rent].parent = None; // the user moved it to the top level
+        let groceries = cats.items.iter().position(|c| c.name == "Groceries").unwrap();
+        assert!(cats.translate_defaults(Lang::Fi));
+        assert_eq!(cats.items[rent].name, "Rent", "a moved one counts as edited");
+        assert_eq!(cats.items[groceries].name, "Ruokakauppa");
     }
 }

@@ -16,34 +16,32 @@ use crate::backup;
 use crate::data::DataFile;
 use crate::i18n::{Currency, Lang, Locale, Msg, Plural, SystemLocale};
 use crate::import::{self, ImportPlan};
-use crate::recurring::{self, RecurringStore};
-use crate::model::{Categories, CategoryId, Entry, Kind, MonthKey, parse_amount_cents};
+use crate::model::{Categories, CategoryId, Entry, Kind, MonthKey, copied_entries, parse_amount_cents};
 use crate::sankey::{self, FlowNode, SankeyData};
 use crate::settings::{Labels, Settings, ThemeChoice};
 use crate::storage::{MonthData, Storage};
 use crate::year::{self, YearSummary};
 
-/// Category colours: vivid ones (used for new categories by default), plus a
-/// darker and a muted (softer) set of the same hues. The picker shows all three.
+/// Category colours: the row the picker shows, and what new categories cycle through.
 pub(crate) const PALETTE: [u32; 10] = [
     0x3F51B5, 0xFF9800, 0x03A9F4, 0x9C27B0, 0xE91E63, 0x4CAF50, 0x795548, 0x00BCD4, 0xCDDC39,
     0xFF5722,
 ];
-const PALETTE_DARK: [u32; 10] = [
-    0x1A237E, 0xE65100, 0x01579B, 0x4A148C, 0x880E4F, 0x1B5E20, 0x3E2723, 0x006064, 0x827717,
-    0xBF360C,
-];
-const PALETTE_MUTED: [u32; 10] = [
-    0x8E99C4, 0xD9A566, 0x7FB0CF, 0xA986B5, 0xC98BA0, 0x86AD88, 0x9C8578, 0x7FB5BB, 0xBBBD86,
-    0xCF9482,
-];
+
+/// What the user is being asked to confirm resetting.
+#[derive(Clone, Copy, PartialEq)]
+enum Reset {
+    /// All settings back to their defaults; the data is not touched.
+    Settings,
+    /// All entries and categories deleted, with the starter categories back.
+    Data,
+}
 
 #[derive(Clone, Copy, PartialEq)]
 enum Page {
     Overview,
     Year,
     Categories,
-    Recurring,
     Settings,
     About,
 }
@@ -51,10 +49,6 @@ enum Page {
 pub struct CashFlowApp {
     storage: Option<Storage>,
     settings: Settings,
-    /// Templates for entries that repeat every month.
-    recurring: RecurringStore,
-    /// "Repeat every month" is ticked in the entry form.
-    repeat: bool,
     /// Language of the operating system, used when the language is "automatic".
     system: SystemLocale,
     /// The resolved language and currency.
@@ -85,6 +79,8 @@ pub struct CashFlowApp {
     cat_kind: Kind,
     cat_parent: Option<CategoryId>,
     cat_color: u32,
+    /// The user picked the colour, so choosing a parent no longer changes it.
+    cat_color_chosen: bool,
     cat_name_in: Entity<InputState>,
 
     error: Option<SharedString>,
@@ -97,10 +93,12 @@ pub struct CashFlowApp {
     pending_import: Option<ImportPlan>,
     /// A neutral success message (saved a file, imported entries).
     notice: Option<SharedString>,
-    /// A newer release found by the opt-in update check.
+    /// A newer release found by the update check.
     update: Option<crate::update::Release>,
     /// A parsed backup file waiting for the user to confirm the restore.
     pending_restore: Option<DataFile>,
+    /// A reset waiting for the user to confirm.
+    pending_reset: Option<Reset>,
     _subs: Vec<Subscription>,
 }
 
@@ -151,17 +149,11 @@ impl CashFlowApp {
         let mut warnings: Vec<String> = Vec::new();
         let mut settings = Settings::default();
         let mut first_run = true;
-        let mut recurring = RecurringStore::default();
         let (mut cats, entries) = match &storage {
             Some(st) => {
                 warnings.extend(st.take_warnings());
                 first_run = !st.has_categories();
                 let c = st.load_categories();
-                recurring = st.load_recurring();
-                // The shown month gets its recurring entries if it is still empty.
-                if let Err(e) = recurring::apply_month(st, &mut recurring, month) {
-                    warnings.push(format!("Could not add recurring entries: {e}"));
-                }
                 let s = st.load_settings();
                 warnings.extend(s.warning);
                 settings = s.value;
@@ -218,8 +210,6 @@ impl CashFlowApp {
             data: SankeyData::default(),
             storage,
             settings,
-            recurring,
-            repeat: false,
             system,
             lc,
             logo: Arc::new(Image::from_bytes(
@@ -241,7 +231,6 @@ impl CashFlowApp {
             page: match std::env::var("CASHFLOW_PAGE").as_deref() {
                 Ok("year") => Page::Year,
                 Ok("categories") => Page::Categories,
-                Ok("recurring") => Page::Recurring,
                 Ok("settings") => Page::Settings,
                 Ok("about") => Page::About,
                 _ => Page::Overview,
@@ -255,6 +244,7 @@ impl CashFlowApp {
             cat_kind: Kind::Expense,
             cat_parent: None,
             cat_color: PALETTE[0],
+            cat_color_chosen: false,
             cat_name_in,
             error: (!warnings.is_empty()).then(|| warnings.join("\n").into()),
             copied: false,
@@ -264,6 +254,7 @@ impl CashFlowApp {
             notice: None,
             update: None,
             pending_restore: None,
+            pending_reset: None,
             _subs: subs,
         };
         app.refresh();
@@ -581,33 +572,85 @@ impl CashFlowApp {
         .detach();
     }
 
-    // ---- recurring entries ----
+    // ---- copying a month ----
 
-    /// Writes `recurring.json`; a failure is shown as an error.
-    fn persist_recurring(&mut self) {
-        let Some(st) = &self.storage else { return };
-        if let Err(e) = st.save_recurring(&self.recurring) {
-            self.error = Some(self.tf(Msg::ErrSaveFailed, &[("error", &e.to_string())]).into());
+    /// The month to copy from: the one before the shown month, if the shown month is still empty
+    /// and the earlier one has entries.
+    fn copy_source(&self) -> Option<MonthKey> {
+        if !self.entries.is_empty() {
+            return None;
         }
+        let previous = self.month.prev();
+        let st = self.storage.as_ref()?;
+        (!st.load_month(previous).entries.is_empty()).then_some(previous)
     }
 
-    fn toggle_repeat(&mut self, cx: &mut Context<Self>) {
-        self.repeat = !self.repeat;
+    /// Fills the empty shown month with the entries of the month before it.
+    fn copy_previous_month(&mut self, cx: &mut Context<Self>) {
+        let Some(from) = self.copy_source() else { return };
+        let Some(st) = self.storage.clone() else { return };
+        self.entries = copied_entries(&st.load_month(from).entries, &self.cats);
+        self.next_entry_id = MonthData { entries: self.entries.clone() }.next_entry_id();
+        let copied = self.lc.count(Plural::CountEntries, self.entries.len());
+        let source = self.lc.month_inline(from);
+        self.error = None;
+        self.commit();
+        self.notice = Some(self.tf(Msg::NoticeMonthCopied, &[("entries", &copied), ("month", &source)]).into());
         cx.notify();
     }
 
-    /// Ends a recurring entry after the current month; months that have it keep it.
-    fn stop_recurring(&mut self, id: u64, cx: &mut Context<Self>) {
-        self.recurring.stop(id, MonthKey::current());
-        self.persist_recurring();
+    // ---- resetting ----
+
+    fn ask_reset(&mut self, what: Reset, cx: &mut Context<Self>) {
+        self.pending_reset = Some(what);
+        self.pending_restore = None;
         cx.notify();
     }
 
-    /// Deletes the template only; entries it already added stay in their months.
-    fn delete_recurring(&mut self, id: u64, cx: &mut Context<Self>) {
-        self.recurring.remove(id);
-        self.persist_recurring();
+    fn cancel_reset(&mut self, cx: &mut Context<Self>) {
+        self.pending_reset = None;
         cx.notify();
+    }
+
+    fn confirm_reset(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(what) = self.pending_reset.take() else { return };
+        match what {
+            Reset::Settings => self.reset_settings(window, cx),
+            Reset::Data => self.reset_data(window, cx),
+        }
+        cx.notify();
+    }
+
+    /// Every setting back to its default: language, currency and theme follow the system again,
+    /// the chart's names are the standard ones, and the update check and MCP server are as at first.
+    /// The update check itself runs the next time the app starts.
+    fn reset_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.settings = Settings::default();
+        self.persist_settings();
+        Theme::sync_system_appearance(Some(window), cx);
+        self.apply_locale(window, cx);
+        self.error = None;
+        self.notice = Some(self.t(Msg::NoticeSettingsReset).into());
+    }
+
+    /// Deletes all entries and categories and brings the starter categories back. A copy of the
+    /// data is saved first, in the same place as before a restore.
+    fn reset_data(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(st) = self.storage.clone() else { return };
+        let lang = self.lc.lang;
+        let result = backup::save_safety_copy(&st).and_then(|copy| {
+            let mut fresh = DataFile::default();
+            fresh.categories = Categories::defaults_for(lang);
+            st.replace_all(&fresh).map(|()| copy)
+        });
+        match result {
+            Ok(copy) => {
+                self.reload_from_disk(window, cx);
+                self.error = None;
+                self.notice = Some(self.tf(Msg::NoticeDataReset, &[("path", &copy.display().to_string())]).into());
+            }
+            Err(e) => self.error = Some(self.tf(Msg::ErrResetFailed, &[("error", &e.to_string())]).into()),
+        }
     }
 
     // ---- backup and restore ----
@@ -685,14 +728,10 @@ impl CashFlowApp {
         cx.notify();
     }
 
-    /// Reloads categories, recurring entries and the shown month after the data was replaced.
+    /// Reloads categories and the shown month after the data was replaced.
     fn reload_from_disk(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(st) = self.storage.clone() else { return };
         self.cats = st.load_categories();
-        self.recurring = st.load_recurring();
-        if let Err(e) = recurring::apply_month(&st, &mut self.recurring, self.month) {
-            self.error = Some(self.tf(Msg::ErrSaveFailed, &[("error", &e.to_string())]).into());
-        }
         self.entries = st.load_month(self.month).entries;
         self.next_entry_id = MonthData { entries: self.entries.clone() }.next_entry_id();
         self.category = self.cats.flatten_sorted(self.kind).first().map(|(_, c)| c.id);
@@ -795,7 +834,6 @@ impl CashFlowApp {
         self.name_in.update(cx, |s, cx| s.set_value("", window, cx));
         self.amount_in.update(cx, |s, cx| s.set_value("", window, cx));
         self.editing = None;
-        self.repeat = false;
     }
 
     // ---- entries ----
@@ -819,7 +857,7 @@ impl CashFlowApp {
             Some(id) => {
                 if let Some(e) = self.entries.iter_mut().find(|e| e.id == id) {
                     e.category_id = category_id;
-                    e.name = name.clone();
+                    e.name = name;
                     e.amount_cents = amount_cents;
                 }
             }
@@ -827,27 +865,15 @@ impl CashFlowApp {
                 self.entries.push(Entry {
                     id: self.next_entry_id,
                     category_id,
-                    name: name.clone(),
+                    name,
                     amount_cents,
                 });
                 self.next_entry_id += 1;
             }
         }
-        // Works for a new entry and for an edited one. An entry that already repeats with the
-        // same values (e.g. one a recurring entry added) does not get a second template.
-        let repeated = self.repeat
-            && !self.recurring.repeats(category_id, &name, amount_cents, self.month)
-            && {
-                self.recurring.add(category_id, name, amount_cents, self.month);
-                true
-            };
         self.error = None;
         self.clear_inputs(window, cx);
         self.commit();
-        if repeated {
-            // The shown month already has its entry; later months get theirs when they are opened.
-            self.persist_recurring();
-        }
         cx.notify();
     }
 
@@ -860,7 +886,6 @@ impl CashFlowApp {
         }
         self.category = Some(e.category_id);
         self.editing = Some(id);
-        self.repeat = false;
         self.name_in.update(cx, |s, cx| s.set_value(e.name.as_str(), window, cx));
         let amount = self.lc.plain_amount(e.amount_cents);
         self.amount_in.update(cx, |s, cx| s.set_value(amount.as_str(), window, cx));
@@ -925,7 +950,31 @@ impl CashFlowApp {
         self.cat_name_in.update(cx, |s, cx| s.set_value("", window, cx));
         self.editing_cat = None;
         self.cat_parent = None;
-        self.cat_color = PALETTE[self.cats.items.len() % PALETTE.len()];
+        self.cat_color = self.default_category_color();
+        self.cat_color_chosen = false;
+    }
+
+    /// The colour a new top-level category starts with: the next one of the palette.
+    fn default_category_color(&self) -> u32 {
+        PALETTE[self.cats.items.len() % PALETTE.len()]
+    }
+
+    /// Chooses the parent in the category form. A new category takes its parent's colour until
+    /// the user picks one themselves; without a parent it goes back to the palette's next colour.
+    fn pick_parent(&mut self, parent: Option<CategoryId>, cx: &mut Context<Self>) {
+        self.cat_parent = parent;
+        if self.editing_cat.is_none() && !self.cat_color_chosen {
+            self.cat_color = parent
+                .and_then(|id| self.cats.get(id))
+                .map_or_else(|| self.default_category_color(), |p| p.color);
+        }
+        cx.notify();
+    }
+
+    fn pick_color(&mut self, color: u32, cx: &mut Context<Self>) {
+        self.cat_color = color;
+        self.cat_color_chosen = true;
+        cx.notify();
     }
 
     fn edit_category(&mut self, id: CategoryId, window: &mut Window, cx: &mut Context<Self>) {
@@ -934,6 +983,7 @@ impl CashFlowApp {
         self.cat_kind = c.kind;
         self.cat_parent = c.parent;
         self.cat_color = c.color;
+        self.cat_color_chosen = true;
         self.cat_name_in.update(cx, |s, cx| s.set_value(c.name.as_str(), window, cx));
         self.error = None;
         cx.notify();
@@ -946,10 +996,6 @@ impl CashFlowApp {
         self.month = month;
         self.pending_import = None;
         if let Some(st) = &self.storage {
-            let filled = recurring::apply_month(st, &mut self.recurring, month);
-            if let Err(e) = filled {
-                self.error = Some(self.tf(Msg::ErrSaveFailed, &[("error", &e.to_string())]).into());
-            }
             self.entries = st.load_month(month).entries;
         } else {
             self.entries = Vec::new();
@@ -961,8 +1007,7 @@ impl CashFlowApp {
     }
 
     fn category_used(&self, id: CategoryId) -> bool {
-        self.recurring.uses_category(id)
-            || self.entries.iter().any(|e| e.category_id == id)
+        self.entries.iter().any(|e| e.category_id == id)
             || self.storage.as_ref().is_some_and(|st| {
                 st.list_months()
                     .into_iter()
@@ -993,9 +1038,6 @@ impl CashFlowApp {
         };
         if target != id {
             self.reassign_in_other_months(id, target);
-            if self.recurring.reassign_category(id, target) {
-                self.persist_recurring();
-            }
         }
         self.cats.remove(id, target, &mut self.entries);
         if self.cat_parent == Some(id) {
@@ -1017,8 +1059,7 @@ impl CashFlowApp {
             return; // the kind of an existing category cannot change
         }
         self.cat_kind = kind;
-        self.cat_parent = None;
-        cx.notify();
+        self.pick_parent(None, cx);
     }
 }
 

@@ -91,7 +91,6 @@ fn cents_text(cents: i64) -> String {
 mod tests {
     use super::*;
     use crate::model::{Entry, MonthKey};
-    use crate::recurring::RecurringStore;
     use crate::storage::MonthData;
 
     fn temp_storage(name: &str) -> Storage {
@@ -115,9 +114,6 @@ mod tests {
             &MonthData { entries: vec![Entry { id: 1, category_id: rent, name: "Flat".into(), amount_cents: 5 }] },
         )
         .unwrap();
-        let mut recurring = RecurringStore::default();
-        recurring.add(rent, "Flat".into(), 5, MonthKey::new(2026, 11).unwrap());
-        st.save_recurring(&recurring).unwrap();
         (st, cats)
     }
 
@@ -133,7 +129,6 @@ mod tests {
         let parsed = parse(&json).unwrap();
         assert_eq!(parsed.categories, cats);
         assert_eq!(parsed.months.len(), 2);
-        assert_eq!(parsed.recurring.items.len(), 1);
 
         let other = temp_storage("restore-target");
         let mut other_settings = crate::settings::Settings::default();
@@ -149,7 +144,6 @@ mod tests {
         // Everything is replaced, including months that are not in the backup...
         assert_eq!(other.list_months(), st.list_months());
         assert_eq!(other.load_categories(), cats);
-        assert_eq!(other.load_recurring(), st.load_recurring());
         // ...but the settings of this computer are not.
         assert_eq!(other.load_settings().value.labels.total, "Other computer");
         let _ = fs::remove_dir_all(st.dir());

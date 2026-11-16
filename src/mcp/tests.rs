@@ -36,6 +36,7 @@ impl Fixture {
                 currency: Some(Currency::Eur),
                 theme: Some(ThemeChoice::Light),
                 mcp: McpSettings { enabled, allow_changes },
+                check_updates: false,
                 ..Settings::default()
             })
             .unwrap();

@@ -423,9 +423,12 @@ messages! {
         en: "Appearance", fi: "Ulkoasu", sv: "Utseende", de: "Darstellung", fr: "Apparence", es: "Apariencia",
     }
     ThemeHelp {
-        en: "Follow the system setting or pick a theme.", fi: "Seuraa järjestelmän asetusta tai valitse teema.",
-        sv: "Följ systeminställningen eller välj ett tema.", de: "Der Systemeinstellung folgen oder ein Design wählen.",
-        fr: "Suivre le réglage du système ou choisir un thème.", es: "Seguir el ajuste del sistema o elegir un tema.",
+        en: "Light or dark, or the same as your computer.",
+        fi: "Vaalea tai tumma, tai sama kuin tietokoneessa.",
+        sv: "Ljust eller mörkt, eller samma som datorn.",
+        de: "Hell oder dunkel, oder wie auf dem Computer.",
+        fr: "Clair ou sombre, ou comme sur votre ordinateur.",
+        es: "Claro u oscuro, o igual que el ordenador.",
     }
     MenuHide {
         en: "Hide CashFlow", fi: "Piilota CashFlow", sv: "Dölj CashFlow", de: "CashFlow ausblenden",
@@ -451,58 +454,17 @@ messages! {
         en: "Minimize", fi: "Pienennä", sv: "Minimera", de: "Minimieren", fr: "Réduire", es: "Minimizar",
     }
     MenuZoom { en: "Zoom", fi: "Suurenna", sv: "Zooma", de: "Zoomen", fr: "Agrandir", es: "Ampliar" }
-    NavRecurring {
-        en: "Recurring", fi: "Toistuvat", sv: "Återkommande", de: "Wiederkehrend", fr: "Récurrents", es: "Recurrentes",
-    }
-    SubRecurring {
-        en: "Entries that are added to every month automatically",
-        fi: "Merkinnät, jotka lisätään automaattisesti joka kuukausi",
-        sv: "Poster som läggs till automatiskt varje månad",
-        de: "Einträge, die jeden Monat automatisch hinzugefügt werden",
-        fr: "Entrées ajoutées automatiquement chaque mois",
-        es: "Movimientos que se añaden automáticamente cada mes",
-    }
-    RepeatMonthly {
-        en: "Repeat every month", fi: "Toista joka kuukausi", sv: "Upprepa varje månad",
-        de: "Jeden Monat wiederholen", fr: "Répéter chaque mois", es: "Repetir cada mes",
-    }
-    RecurringHelp {
-        en: "A recurring entry is added to a month when you open it and it is still empty, from the month the entry starts. Months you do not open are left alone, and entries you delete from a month stay deleted. To change an amount, stop the entry and add a new one.",
-        fi: "Toistuva merkintä lisätään kuukauteen, kun avaat sen ja se on vielä tyhjä, alkukuukaudesta lähtien. Kuukausiin, joita et avaa, ei kosketa, ja kuukaudesta poistamasi merkinnät eivät palaa. Summan muuttamiseksi lopeta merkintä ja lisää uusi.",
-        sv: "En återkommande post läggs till i en månad när du öppnar den och den fortfarande är tom, från startmånaden. Månader du inte öppnar lämnas ifred, och poster du tar bort från en månad kommer inte tillbaka. Avsluta posten och lägg till en ny för att ändra beloppet.",
-        de: "Ein wiederkehrender Eintrag wird einem Monat hinzugefügt, wenn du ihn öffnest und er noch leer ist, ab dem Startmonat. Monate, die du nicht öffnest, bleiben unberührt, und aus einem Monat gelöschte Einträge kommen nicht zurück. Um einen Betrag zu ändern, beende den Eintrag und lege einen neuen an.",
-        fr: "Une entrée récurrente est ajoutée à un mois quand vous l'ouvrez et qu'il est encore vide, à partir de son mois de début. Les mois que vous n'ouvrez pas restent intacts, et les entrées supprimées d'un mois ne reviennent pas. Pour changer un montant, arrêtez l'entrée et ajoutez-en une nouvelle.",
-        es: "Un movimiento recurrente se añade a un mes cuando lo abres y aún está vacío, desde su mes de inicio. Los meses que no abras quedan intactos, y los movimientos que borres de un mes no vuelven. Para cambiar un importe, detén el movimiento y añade uno nuevo.",
-    }
-    RecurringEmpty {
-        en: "No recurring entries yet. Tick \"Repeat every month\" when you add an entry.",
-        fi: "Ei vielä toistuvia merkintöjä. Valitse merkintää lisätessäsi \"Toista joka kuukausi\".",
-        sv: "Inga återkommande poster ännu. Välj \"Upprepa varje månad\" när du lägger till en post.",
-        de: "Noch keine wiederkehrenden Einträge. Wähle beim Hinzufügen eines Eintrags \"Jeden Monat wiederholen\".",
-        fr: "Aucune entrée récurrente. Cochez \"Répéter chaque mois\" en ajoutant une entrée.",
-        es: "Aún no hay movimientos recurrentes. Marca \"Repetir cada mes\" al añadir un movimiento.",
-    }
-    RecurringSince {
-        en: "From {from}", fi: "Alkaen {from}", sv: "Från {from}", de: "Ab {from}", fr: "Depuis {from}", es: "Desde {from}",
-    }
-    RecurringRange {
-        en: "{from} – {to}", fi: "{from} – {to}", sv: "{from} – {to}", de: "{from} – {to}", fr: "{from} – {to}",
-        es: "{from} – {to}",
-    }
-    RecurringStop {
-        en: "Stop", fi: "Lopeta", sv: "Avsluta", de: "Beenden", fr: "Arrêter", es: "Detener",
-    }
     BackupTitle {
         en: "Backup and export", fi: "Varmuuskopio ja vienti", sv: "Säkerhetskopia och export",
         de: "Sicherung und Export", fr: "Sauvegarde et export", es: "Copia de seguridad y exportación",
     }
     BackupHelp {
-        en: "Save all your data in one file to restore later or on another computer, or export every entry as CSV.",
-        fi: "Tallenna kaikki tietosi yhteen tiedostoon palautettavaksi myöhemmin tai toisella tietokoneella, tai vie merkinnät CSV:nä.",
-        sv: "Spara alla uppgifter i en fil för att återställa senare eller på en annan dator, eller exportera alla poster som CSV.",
-        de: "Speichere alle Daten in einer Datei zum späteren Wiederherstellen oder für einen anderen Computer, oder exportiere alle Einträge als CSV.",
-        fr: "Enregistrez toutes vos données dans un fichier à restaurer plus tard ou sur un autre ordinateur, ou exportez les entrées en CSV.",
-        es: "Guarda todos tus datos en un archivo para restaurarlos más tarde o en otro ordenador, o exporta los movimientos como CSV.",
+        en: "Save your data in one file to use later or on another computer, or save the entries as a table (CSV).",
+        fi: "Tallenna tietosi yhteen tiedostoon, jotta voit palauttaa ne myöhemmin tai toisella koneella, tai tallenna merkinnät taulukkona (CSV).",
+        sv: "Spara dina uppgifter i en fil för att använda senare eller på en annan dator, eller spara posterna som tabell (CSV).",
+        de: "Speichere deine Daten in einer Datei für später oder einen anderen Computer, oder speichere die Einträge als Tabelle (CSV).",
+        fr: "Enregistrez vos données dans un fichier pour plus tard ou un autre ordinateur, ou enregistrez les entrées sous forme de tableau (CSV).",
+        es: "Guarda tus datos en un archivo para usarlos más tarde o en otro ordenador, o guarda los movimientos como tabla (CSV).",
     }
     BackupSave {
         en: "Save backup", fi: "Tallenna varmuuskopio", sv: "Spara säkerhetskopia", de: "Sicherung speichern",
@@ -551,36 +513,36 @@ messages! {
         sv: "Återställningen misslyckades: {error}", de: "Wiederherstellung fehlgeschlagen: {error}",
         fr: "La restauration a échoué : {error}", es: "No se pudo restaurar: {error}",
     }
-    SettingsAdvanced {
-        en: "Advanced", fi: "Lisäasetukset", sv: "Avancerat", de: "Erweitert", fr: "Avancé", es: "Avanzado",
-    }
     McpTitle {
         en: "MCP server", fi: "MCP-palvelin", sv: "MCP-server", de: "MCP-Server", fr: "Serveur MCP", es: "Servidor MCP",
     }
     McpHelp {
-        en: "Lets an AI assistant read and manage your budget by starting CashFlow in the background, with nothing listening on the network.",
-        fi: "Antaa tekoälyavustajan lukea ja hallita budjettiasi käynnistämällä CashFlow'n taustalle, eikä mikään kuuntele verkossa.",
-        sv: "Låter en AI-assistent läsa och hantera din budget genom att starta CashFlow i bakgrunden, utan att något lyssnar på nätverket.",
-        de: "Erlaubt einem KI-Assistenten, dein Budget zu lesen und zu verwalten, indem er CashFlow im Hintergrund startet, ohne dass etwas im Netzwerk lauscht.",
-        fr: "Permet à un assistant IA de lire et gérer votre budget en lançant CashFlow en arrière-plan, sans rien écouter sur le réseau.",
-        es: "Permite que un asistente de IA lea y gestione tu presupuesto iniciando CashFlow en segundo plano, sin que nada escuche en la red.",
+        en: "Lets an AI assistant on your computer read and edit your budget.",
+        fi: "Antaa tietokoneesi tekoälyavustajan lukea ja muokata budjettiasi.",
+        sv: "Låter en AI-assistent på din dator läsa och ändra din budget.",
+        de: "Erlaubt einem KI-Assistenten auf deinem Computer, dein Budget zu lesen und zu ändern.",
+        fr: "Permet à un assistant IA sur votre ordinateur de lire et modifier votre budget.",
+        es: "Permite que un asistente de IA de tu ordenador lea y modifique tu presupuesto.",
     }
     McpConnectHelp {
-        en: "Run the copied command once in a terminal to connect your assistant.",
-        fi: "Aja kopioitu komento kerran terminaalissa yhdistääksesi avustajasi.",
-        sv: "Kör det kopierade kommandot en gång i en terminal för att ansluta din assistent.",
-        de: "Führe den kopierten Befehl einmal in einem Terminal aus, um deinen Assistenten zu verbinden.",
-        fr: "Exécutez la commande copiée une fois dans un terminal pour connecter votre assistant.",
-        es: "Ejecuta una vez el comando copiado en una terminal para conectar a tu asistente.",
+        en: "Copy the command and run it once in a terminal to connect your assistant.",
+        fi: "Kopioi komento ja aja se kerran terminaalissa, niin avustaja yhdistyy.",
+        sv: "Kopiera kommandot och kör det en gång i en terminal för att ansluta assistenten.",
+        de: "Kopiere den Befehl und führe ihn einmal in einem Terminal aus, um den Assistenten zu verbinden.",
+        fr: "Copiez la commande et exécutez-la une fois dans un terminal pour connecter l'assistant.",
+        es: "Copia el comando y ejecútalo una vez en una terminal para conectar al asistente.",
     }
     McpChanges {
         en: "Allow changes", fi: "Salli muutokset", sv: "Tillåt ändringar", de: "Änderungen erlauben",
         fr: "Autoriser les modifications", es: "Permitir cambios",
     }
     McpChangesHelp {
-        en: "When off, the assistant can only read your data.", fi: "Kun pois päältä, avustaja voi vain lukea tietojasi.",
-        sv: "När det är av kan assistenten bara läsa dina uppgifter.", de: "Wenn aus, kann der Assistent deine Daten nur lesen.",
-        fr: "Si désactivé, l'assistant ne peut que lire vos données.", es: "Si está desactivado, el asistente solo puede leer tus datos.",
+        en: "When off, the assistant can look but not change anything.",
+        fi: "Kun pois päältä, avustaja voi vain katsoa, ei muuttaa mitään.",
+        sv: "När det är av kan assistenten bara titta, inte ändra något.",
+        de: "Wenn aus, kann der Assistent nur ansehen, nichts ändern.",
+        fr: "Si désactivé, l'assistant peut seulement regarder, rien modifier.",
+        es: "Si está desactivado, el asistente solo puede mirar, no cambiar nada.",
     }
     McpCopyCommand {
         en: "Copy command", fi: "Kopioi komento", sv: "Kopiera kommando", de: "Befehl kopieren",
@@ -594,12 +556,12 @@ messages! {
         en: "Updates", fi: "Päivitykset", sv: "Uppdateringar", de: "Updates", fr: "Mises à jour", es: "Actualizaciones",
     }
     UpdatesHelp {
-        en: "When on, the app checks GitHub for a newer release at startup.",
-        fi: "Kun päällä, sovellus tarkistaa käynnistyksessä GitHubista uudemman julkaisun.",
-        sv: "När det är på kontrollerar appen GitHub efter en nyare version vid start.",
-        de: "Wenn aktiv, prüft die App beim Start auf GitHub, ob eine neuere Version vorliegt.",
-        fr: "Si activé, l'application cherche une version plus récente sur GitHub au démarrage.",
-        es: "Si está activado, la aplicación busca una versión más reciente en GitHub al iniciar.",
+        en: "Lets the app check GitHub for a new version when it starts.",
+        fi: "Antaa sovelluksen tarkistaa käynnistyessään GitHubista, onko uusi versio saatavilla.",
+        sv: "Låter appen kolla på GitHub efter en ny version när den startar.",
+        de: "Lässt die App beim Start auf GitHub nach einer neuen Version suchen.",
+        fr: "Permet à l'application de chercher une nouvelle version sur GitHub au démarrage.",
+        es: "Permite que la aplicación busque una versión nueva en GitHub al iniciar.",
     }
     On { en: "On", fi: "Päällä", sv: "På", de: "An", fr: "Activé", es: "Activado" }
     Off { en: "Off", fi: "Pois", sv: "Av", de: "Aus", fr: "Désactivé", es: "Desactivado" }
@@ -607,6 +569,70 @@ messages! {
         en: "Version {version} is available.", fi: "Versio {version} on saatavilla.",
         sv: "Version {version} är tillgänglig.", de: "Version {version} ist verfügbar.",
         fr: "La version {version} est disponible.", es: "La versión {version} está disponible.",
+    }
+    CopyPreviousMonth {
+        en: "Copy entries from {month}", fi: "Kopioi merkinnät: {month}", sv: "Kopiera poster från {month}",
+        de: "Einträge aus {month} kopieren", fr: "Copier les entrées de {month}", es: "Copiar movimientos de {month}",
+    }
+    NoticeMonthCopied {
+        en: "Copied: {entries} (from {month})", fi: "Kopioitu: {entries} (lähde: {month})",
+        sv: "Kopierat: {entries} (från {month})", de: "Kopiert: {entries} (aus {month})",
+        fr: "Copié : {entries} (de {month})", es: "Copiado: {entries} (de {month})",
+    }
+    ResetTitle {
+        en: "Reset", fi: "Nollaus", sv: "Återställ", de: "Zurücksetzen", fr: "Réinitialiser", es: "Restablecer",
+    }
+    ResetHelp {
+        en: "Set the settings back to how they were at first, or delete all your data and start from scratch.",
+        fi: "Palauta asetukset alkuperäisiksi tai poista kaikki tiedot ja aloita alusta.",
+        sv: "Sätt tillbaka inställningarna som från början, eller ta bort alla uppgifter och börja om.",
+        de: "Setze die Einstellungen auf den Anfang zurück oder lösche alle Daten und beginne neu.",
+        fr: "Remettez les réglages comme au début, ou supprimez toutes les données et recommencez.",
+        es: "Deja los ajustes como al principio, o borra todos los datos y empieza de cero.",
+    }
+    ResetSettings {
+        en: "Reset settings", fi: "Nollaa asetukset", sv: "Återställ inställningar",
+        de: "Einstellungen zurücksetzen", fr: "Réinitialiser les réglages", es: "Restablecer ajustes",
+    }
+    ResetData {
+        en: "Delete all data", fi: "Poista kaikki tiedot", sv: "Ta bort alla uppgifter", de: "Alle Daten löschen",
+        fr: "Supprimer toutes les données", es: "Borrar todos los datos",
+    }
+    ConfirmResetSettings {
+        en: "Reset all settings to their defaults? Your data is not changed.",
+        fi: "Nollataanko kaikki asetukset oletuksiin? Tietoihisi ei kosketa.",
+        sv: "Återställa alla inställningar till standard? Dina uppgifter ändras inte.",
+        de: "Alle Einstellungen auf die Standardwerte zurücksetzen? Deine Daten bleiben unverändert.",
+        fr: "Rétablir tous les réglages par défaut ? Vos données ne sont pas modifiées.",
+        es: "¿Restablecer todos los ajustes a sus valores por defecto? Tus datos no cambian.",
+    }
+    ConfirmResetData {
+        en: "Delete all entries and categories and start over? A copy of the current data is saved first.",
+        fi: "Poistetaanko kaikki merkinnät ja kategoriat ja aloitetaanko alusta? Nykyisistä tiedoista tallennetaan ensin kopio.",
+        sv: "Ta bort alla poster och kategorier och börja om? En kopia av nuvarande uppgifter sparas först.",
+        de: "Alle Einträge und Kategorien löschen und neu beginnen? Zuvor wird eine Kopie der aktuellen Daten gespeichert.",
+        fr: "Supprimer toutes les entrées et catégories et recommencer ? Une copie des données actuelles est enregistrée d'abord.",
+        es: "¿Borrar todos los movimientos y categorías y empezar de nuevo? Antes se guarda una copia de los datos actuales.",
+    }
+    NoticeSettingsReset {
+        en: "Settings reset to their defaults", fi: "Asetukset palautettu oletuksiin", sv: "Inställningarna återställdes",
+        de: "Einstellungen zurückgesetzt", fr: "Réglages rétablis", es: "Ajustes restablecidos",
+    }
+    NoticeDataReset {
+        en: "All data deleted. A copy of the previous data is in {path}",
+        fi: "Kaikki tiedot poistettu. Aiempien tietojen kopio on tiedostossa {path}",
+        sv: "Alla uppgifter togs bort. En kopia av de tidigare uppgifterna finns i {path}",
+        de: "Alle Daten gelöscht. Eine Kopie der bisherigen Daten liegt in {path}",
+        fr: "Toutes les données ont été supprimées. Une copie des données précédentes se trouve dans {path}",
+        es: "Todos los datos se han borrado. Una copia de los datos anteriores está en {path}",
+    }
+    ErrResetFailed {
+        en: "Resetting failed: {error}", fi: "Nollaus epäonnistui: {error}", sv: "Återställningen misslyckades: {error}",
+        de: "Zurücksetzen fehlgeschlagen: {error}", fr: "La réinitialisation a échoué : {error}",
+        es: "No se pudo restablecer: {error}",
+    }
+    UpdateDownload {
+        en: "Download", fi: "Lataa", sv: "Ladda ned", de: "Herunterladen", fr: "Télécharger", es: "Descargar",
     }
     UpdateView {
         en: "View release", fi: "Näytä julkaisu", sv: "Visa version", de: "Version ansehen",
@@ -854,12 +880,12 @@ messages! {
         fr: "Libellés du graphique", es: "Etiquetas del gráfico",
     }
     ChartLabelsHelp {
-        en: "Names of the chart's automatic nodes, also used in the SankeyMATIC export and import.",
-        fi: "Kaavion automaattisten solmujen nimet, joita käytetään myös SankeyMATIC-viennissä ja -tuonnissa.",
-        sv: "Namn på diagrammets automatiska noder, som även används vid SankeyMATIC-export och -import.",
-        de: "Namen der automatischen Knoten des Diagramms, die auch beim SankeyMATIC-Export und -Import gelten.",
-        fr: "Noms des nœuds automatiques du graphique, aussi utilisés pour l'export et l'import SankeyMATIC.",
-        es: "Nombres de los nodos automáticos del gráfico, que también se usan al exportar e importar con SankeyMATIC.",
+        en: "The names the chart gives to your total income, savings and deficit.",
+        fi: "Nimet, jotka kaavio antaa kokonaistuloille, säästöille ja alijäämälle.",
+        sv: "Namnen som diagrammet ger totala inkomster, sparande och underskott.",
+        de: "Die Namen, die das Diagramm für Gesamteinnahmen, Ersparnisse und Defizit verwendet.",
+        fr: "Les noms que le graphique donne aux revenus totaux, à l'épargne et au déficit.",
+        es: "Los nombres que el gráfico da a los ingresos totales, el ahorro y el déficit.",
     }
     LabelTotal {
         en: "Middle node (all income flows in here)", fi: "Keskisolmu (kaikki tulot virtaavat tähän)",
@@ -883,12 +909,12 @@ messages! {
     }
     LanguageTitle { en: "Language", fi: "Kieli", sv: "Språk", de: "Sprache", fr: "Langue", es: "Idioma" }
     LanguageHelp {
-        en: "Dates, numbers and the starter categories (until you edit them) follow this language, or your system's when set to Automatic.",
-        fi: "Päivämäärät, luvut ja aloituskategoriat (kunnes muokkaat niitä) noudattavat tätä kieltä, tai järjestelmän kieltä Automaattisella.",
-        sv: "Datum, tal och startkategorierna (tills du ändrar dem) följer detta språk, eller systemets om Automatiskt är valt.",
-        de: "Datum, Zahlen und die Startkategorien (bis du sie änderst) richten sich nach dieser Sprache, bei „Automatisch“ nach der des Systems.",
-        fr: "Les dates, les nombres et les catégories de départ (tant que vous ne les modifiez pas) suivent cette langue, ou celle du système avec « Automatique ».",
-        es: "Las fechas, los números y las categorías iniciales (mientras no las edites) siguen este idioma, o el del sistema con «Automático».",
+        en: "Choose the app's language, or let it follow your computer.",
+        fi: "Valitse sovelluksen kieli tai anna sen seurata tietokonetta.",
+        sv: "Välj appens språk eller låt det följa din dator.",
+        de: "Wähle die Sprache der App oder lass sie dem Computer folgen.",
+        fr: "Choisissez la langue de l'application ou laissez-la suivre votre ordinateur.",
+        es: "Elige el idioma de la aplicación o deja que siga al ordenador.",
     }
     Automatic {
         en: "Automatic", fi: "Automaattinen", sv: "Automatiskt", de: "Automatisch", fr: "Automatique",
@@ -896,12 +922,12 @@ messages! {
     }
     CurrencyTitle { en: "Currency", fi: "Valuutta", sv: "Valuta", de: "Währung", fr: "Devise", es: "Moneda" }
     CurrencyHelp {
-        en: "Changes only how amounts are shown, nothing is converted.",
-        fi: "Muuttaa vain summien esitystapaa, mitään ei muunneta.",
-        sv: "Ändrar bara hur belopp visas, inget räknas om.",
-        de: "Ändert nur die Darstellung der Beträge, nichts wird umgerechnet.",
-        fr: "Ne change que l'affichage des montants, rien n'est converti.",
-        es: "Solo cambia cómo se muestran los importes, no se convierte nada.",
+        en: "Changes only the currency sign; amounts stay the same.",
+        fi: "Vaihtaa vain rahan merkin, summat pysyvät samoina.",
+        sv: "Ändrar bara valutatecknet, beloppen förblir desamma.",
+        de: "Ändert nur das Währungszeichen, die Beträge bleiben gleich.",
+        fr: "Ne change que le symbole de la monnaie, les montants restent les mêmes.",
+        es: "Solo cambia el símbolo de la moneda, los importes se quedan igual.",
     }
 
     // ---- about page ----
@@ -1130,9 +1156,17 @@ messages! {
         en: "Other income", fi: "Muut tulot", sv: "Övriga inkomster", de: "Sonstige Einnahmen",
         fr: "Autres revenus", es: "Otros ingresos",
     }
+    DefRent { en: "Rent", fi: "Vuokra", sv: "Hyra", de: "Miete", fr: "Loyer", es: "Alquiler" }
+    DefGroceries {
+        en: "Groceries", fi: "Ruokakauppa", sv: "Matvaror", de: "Lebensmittel", fr: "Courses", es: "Compra",
+    }
+    DefEatingOut {
+        en: "Eating out", fi: "Ravintolat", sv: "Äta ute", de: "Restaurant", fr: "Resto", es: "Comer fuera",
+    }
+    DefHealth { en: "Health", fi: "Terveys", sv: "Hälsa", de: "Gesundheit", fr: "Santé", es: "Salud" }
     DefHousing { en: "Housing", fi: "Asuminen", sv: "Boende", de: "Wohnen", fr: "Logement", es: "Vivienda" }
     DefFood { en: "Food", fi: "Ruoka", sv: "Mat", de: "Essen", fr: "Alimentation", es: "Alimentación" }
-    DefTransport { en: "Transport", fi: "Liikenne", sv: "Transport", de: "Verkehr", fr: "Transports", es: "Transporte" }
+    DefTransport { en: "Transport", fi: "Liikkuminen", sv: "Transport", de: "Verkehr", fr: "Transports", es: "Transporte" }
     DefLeisure { en: "Leisure", fi: "Vapaa-aika", sv: "Fritid", de: "Freizeit", fr: "Loisirs", es: "Ocio" }
     DefLabelTotal {
         en: "Total income", fi: "Kokonaistulot", sv: "Totala inkomster", de: "Gesamteinnahmen",

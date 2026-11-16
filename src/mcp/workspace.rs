@@ -9,8 +9,7 @@ use crate::app::PALETTE;
 use crate::backup;
 use crate::i18n::{Currency, Lang, Locale, SystemLocale};
 use crate::mcp::tools;
-use crate::model::{Categories, Category, CategoryId, Entry, Kind, MonthKey};
-use crate::recurring::{self, RecurringStore};
+use crate::model::{Categories, Category, CategoryId, Entry, Kind, MonthKey, copied_entries};
 use crate::settings::{Settings, ThemeChoice};
 use crate::storage::{MonthData, Storage};
 use crate::{import, sankey, year};
@@ -45,7 +44,6 @@ struct Workspace {
     settings: Settings,
     lc: Locale,
     cats: Categories,
-    recurring: RecurringStore,
     /// The month used when a tool is not given one: the current calendar month.
     month: MonthKey,
 }
@@ -60,7 +58,6 @@ impl Workspace {
             settings,
             lc,
             cats,
-            recurring: st.load_recurring(),
             month: MonthKey::current(),
         }
     }
@@ -73,7 +70,6 @@ impl Workspace {
             "list_entries" => self.tool_list_entries(args),
             "get_month_summary" => self.tool_month_summary(args),
             "get_year_summary" => self.tool_year_summary(args),
-            "list_recurring" => Ok(self.tool_list_recurring()),
             "get_settings" => Ok(self.tool_get_settings()),
             "export_csv" => Ok(Value::String(self.st.snapshot().to_csv().trim_start_matches('\u{feff}').to_string())),
             "export_backup" => self.st.snapshot().to_json().map(Value::String),
@@ -84,9 +80,7 @@ impl Workspace {
             "add_category" => self.tool_add_category(args),
             "update_category" => self.tool_update_category(args),
             "delete_category" => self.tool_delete_category(args),
-            "update_recurring" => self.tool_update_recurring(args),
-            "stop_recurring" => self.tool_stop_recurring(args),
-            "delete_recurring" => self.tool_delete_recurring(args),
+            "copy_month" => self.tool_copy_month(args),
             "set_settings" => self.tool_set_settings(args),
             "import_sankeymatic" => self.tool_import(args),
             "restore_backup" => self.tool_restore(args),
@@ -191,7 +185,6 @@ impl Workspace {
             "theme": theme_name(self.settings.theme),
             "categories": self.cats.items.len(),
             "months_with_entries": self.st.list_months().len(),
-            "recurring_entries": self.recurring.items.len(),
             "changes_allowed": self.settings.mcp.allow_changes,
         }))
     }
@@ -294,28 +287,6 @@ impl Workspace {
         }))
     }
 
-    fn tool_list_recurring(&self) -> Value {
-        let items: Vec<Value> = self
-            .recurring
-            .items
-            .iter()
-            .map(|r| {
-                json!({
-                    "id": r.id,
-                    "category_id": r.category_id,
-                    "category": backup::category_path(&self.cats, r.category_id),
-                    "kind": self.cats.get(r.category_id).map(|c| kind_name(c.kind)),
-                    "name": r.name,
-                    "amount": money(r.amount_cents),
-                    "from": r.start.to_string(),
-                    "until": r.end.map(|e| e.to_string()),
-                    "stopped": r.end.is_some(),
-                })
-            })
-            .collect();
-        json!({"currency": self.lc.currency.code(), "recurring": items})
-    }
-
     fn tool_get_settings(&self) -> Value {
         let labels = self.labels();
         json!({
@@ -351,25 +322,13 @@ impl Workspace {
         let cents = amount_cents(args.get("amount").ok_or("amount is required")?)?;
         let name = text_arg(args, "name")?.unwrap_or_default();
         let month = self.month_arg(args)?;
-        let repeat = args.get("repeat_monthly").and_then(Value::as_bool).unwrap_or(false);
         let st = self.st.clone();
 
-        // Like opening the month in the app: an empty month first gets its recurring entries.
-        recurring::apply_month(&st, &mut self.recurring, month).map_err(|e| e.to_string())?;
         let mut data = st.load_month(month);
-        let entry = Entry { id: data.next_entry_id(), category_id: category, name: name.clone(), amount_cents: cents };
+        let entry = Entry { id: data.next_entry_id(), category_id: category, name, amount_cents: cents };
         data.entries.push(entry.clone());
         st.save_month(month, &data).map_err(|e| e.to_string())?;
-
-        let mut repeating = false;
-        if repeat {
-            if !self.recurring.repeats(category, &name, cents, month) {
-                self.recurring.add(category, name, cents, month);
-            }
-            st.save_recurring(&self.recurring).map_err(|e| e.to_string())?;
-            repeating = true;
-        }
-        Ok(json!({"month": month.to_string(), "added": self.entry_json(&entry), "repeats_monthly": repeating}))
+        Ok(json!({"month": month.to_string(), "added": self.entry_json(&entry)}))
     }
 
     fn tool_update_entry(&mut self, args: &Value) -> Result<Value, String> {
@@ -452,9 +411,13 @@ impl Workspace {
             }
             _ => None,
         };
+        // Like in the app: a sub-category starts in its parent's colour.
         let color = match args.get("color").and_then(Value::as_str) {
             Some(c) => parse_color(c)?,
-            None => PALETTE[self.cats.items.len() % PALETTE.len()],
+            None => match parent.and_then(|id| self.cats.get(id)) {
+                Some(parent) => parent.color,
+                None => PALETTE[self.cats.items.len() % PALETTE.len()],
+            },
         };
         let mut cats = self.cats.clone();
         let id = cats.add(name, kind, parent, color);
@@ -494,8 +457,8 @@ impl Workspace {
         let target = cat
             .parent
             .or_else(|| self.cats.flatten(cat.kind).iter().map(|(_, c)| c.id).find(|&other| other != id));
-        let used = self.recurring.uses_category(id)
-            || st.list_months().into_iter().any(|k| st.load_month(k).entries.iter().any(|e| e.category_id == id));
+        let used = st
+            .list_months().into_iter().any(|k| st.load_month(k).entries.iter().any(|e| e.category_id == id));
         let target = match target {
             Some(t) => t,
             None if used => {
@@ -521,9 +484,6 @@ impl Workspace {
                     st.save_month(key, &data).map_err(|e| e.to_string())?;
                 }
             }
-            if self.recurring.reassign_category(id, target) {
-                st.save_recurring(&self.recurring).map_err(|e| e.to_string())?;
-            }
         }
         let mut cats = self.cats.clone();
         cats.remove(id, target, &mut []);
@@ -535,67 +495,27 @@ impl Workspace {
         }))
     }
 
-    // ---- recurring entries ----
+    // ---- copying a month ----
 
-    fn recurring_json(&self, id: u64) -> Value {
-        self.tool_list_recurring()["recurring"]
-            .as_array()
-            .and_then(|items| items.iter().find(|r| r["id"] == id).cloned())
-            .unwrap_or(Value::Null)
-    }
-
-    fn tool_update_recurring(&mut self, args: &Value) -> Result<Value, String> {
-        let id = id_arg(args, "id")?;
-        let category = match args.get("category") {
-            Some(v) if !v.is_null() => Some(self.category_arg(v)?),
-            _ => None,
-        };
-        let name = text_arg(args, "name")?;
-        let cents = match args.get("amount") {
-            Some(v) if !v.is_null() => Some(amount_cents(v)?),
-            _ => None,
-        };
-        if category.is_none() && name.is_none() && cents.is_none() {
-            return Err("nothing to change: give category, name or amount".to_string());
+    /// Starts an empty month from another one (by default the month before it), like the button
+    /// in the app's window.
+    fn tool_copy_month(&mut self, args: &Value) -> Result<Value, String> {
+        let to = month_in(args, "to")?.unwrap_or(self.month);
+        let from = month_in(args, "from")?.unwrap_or_else(|| to.prev());
+        if from == to {
+            return Err("the month to copy from and the month to copy to are the same".to_string());
         }
-        let item = self
-            .recurring
-            .items
-            .iter_mut()
-            .find(|r| r.id == id)
-            .ok_or_else(|| format!("there is no recurring entry {id}"))?;
-        if let Some(c) = category {
-            item.category_id = c;
+        let source = self.st.load_month(from).entries;
+        if source.is_empty() {
+            return Err(format!("{from} has no entries to copy"));
         }
-        if let Some(n) = name {
-            item.name = n;
+        if !self.st.load_month(to).entries.is_empty() {
+            return Err(format!("{to} already has entries; a month can only be copied into an empty one"));
         }
-        if let Some(c) = cents {
-            item.amount_cents = c;
-        }
-        self.st.save_recurring(&self.recurring).map_err(|e| e.to_string())?;
-        Ok(json!({"updated": self.recurring_json(id)}))
-    }
-
-    fn tool_stop_recurring(&mut self, args: &Value) -> Result<Value, String> {
-        let id = id_arg(args, "id")?;
-        if !self.recurring.items.iter().any(|r| r.id == id) {
-            return Err(format!("there is no recurring entry {id}"));
-        }
-        self.recurring.stop(id, MonthKey::current());
-        self.st.save_recurring(&self.recurring).map_err(|e| e.to_string())?;
-        Ok(json!({"stopped": self.recurring_json(id)}))
-    }
-
-    fn tool_delete_recurring(&mut self, args: &Value) -> Result<Value, String> {
-        let id = id_arg(args, "id")?;
-        let before = self.recurring_json(id);
-        if before.is_null() {
-            return Err(format!("there is no recurring entry {id}"));
-        }
-        self.recurring.remove(id);
-        self.st.save_recurring(&self.recurring).map_err(|e| e.to_string())?;
-        Ok(json!({"deleted": before}))
+        let entries = copied_entries(&source, &self.cats);
+        let copied = entries.len();
+        self.st.save_month(to, &MonthData { entries }).map_err(|e| e.to_string())?;
+        Ok(json!({"from": from.to_string(), "to": to.to_string(), "entries_copied": copied}))
     }
 
     // ---- settings, import and restore ----
@@ -708,7 +628,7 @@ impl Workspace {
         let copy = backup::save_safety_copy(&self.st).map_err(|e| e.to_string())?;
         self.st.replace_all(&data).map_err(|e| e.to_string())?;
         Ok(json!({
-            "restored": {"categories": data.categories.items.len(), "months": data.months.len(), "recurring": data.recurring.items.len()},
+            "restored": {"categories": data.categories.items.len(), "months": data.months.len()},
             "copy_of_previous_data": copy.display().to_string(),
         }))
     }
@@ -741,10 +661,15 @@ fn theme_name(theme: Option<ThemeChoice>) -> &'static str {
 
 /// `month` as `YYYY-MM`, if given.
 fn opt_month(args: &Value) -> Result<Option<MonthKey>, String> {
-    match args.get("month") {
+    month_in(args, "month")
+}
+
+/// The month in argument `key` as `YYYY-MM`, if given.
+fn month_in(args: &Value, key: &str) -> Result<Option<MonthKey>, String> {
+    match args.get(key) {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::String(s)) => s.parse().map(Some).map_err(|_| format!("invalid month \"{s}\", use YYYY-MM")),
-        Some(_) => Err("month must be text like 2026-11".to_string()),
+        Some(Value::String(s)) => s.parse().map(Some).map_err(|_| format!("invalid {key} \"{s}\", use YYYY-MM")),
+        Some(_) => Err(format!("{key} must be text like 2026-11")),
     }
 }
 

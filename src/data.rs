@@ -1,5 +1,5 @@
-//! The data file: everything the user has recorded (categories, recurring
-//! entries and all months) in one JSON document, `data.json`.
+//! The data file: everything the user has recorded (categories and all
+//! months) in one JSON document, `data.json`.
 //!
 //! The document carries a schema `version`. The version only changes when the
 //! layout changes in a way an older app could not read; it is not the release
@@ -17,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::model::{Categories, MonthKey};
-use crate::recurring::RecurringStore;
 use crate::storage::MonthData;
 
 /// Marker that identifies a CashFlow data file.
@@ -44,7 +43,6 @@ pub struct DataFile {
     /// Local time of the last save.
     pub saved_at: String,
     pub categories: Categories,
-    pub recurring: RecurringStore,
     /// Entries per month, keyed by `YYYY-MM`.
     pub months: BTreeMap<String, MonthData>,
 }
@@ -57,7 +55,6 @@ impl Default for DataFile {
             written_by: env!("CARGO_PKG_VERSION").to_string(),
             saved_at: String::new(),
             categories: Categories::default(),
-            recurring: RecurringStore::default(),
             months: BTreeMap::new(),
         }
     }

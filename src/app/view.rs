@@ -255,7 +255,6 @@ impl CashFlowApp {
             .child(brand)
             .child(nav(Page::Overview, IconName::LayoutDashboard, self.t(Msg::NavOverview), cx))
             .child(nav(Page::Year, IconName::CalendarDays, self.t(Msg::NavYear), cx))
-            .child(nav(Page::Recurring, IconName::Repeat, self.t(Msg::NavRecurring), cx))
             .child(nav(Page::Categories, IconName::Tags, self.t(Msg::NavCategories), cx))
             .child(nav(Page::Settings, IconName::Settings, self.t(Msg::NavSettings), cx))
             .child(nav(Page::About, IconName::Info, self.t(Msg::NavAbout), cx))
@@ -266,7 +265,6 @@ impl CashFlowApp {
         let (title, sub) = match self.page {
             Page::Overview => (self.t(Msg::NavOverview), self.t(Msg::SubOverview)),
             Page::Year => (self.t(Msg::NavYear), self.t(Msg::SubYear)),
-            Page::Recurring => (self.t(Msg::NavRecurring), self.t(Msg::SubRecurring)),
             Page::Categories => (self.t(Msg::NavCategories), self.t(Msg::SubCategories)),
             Page::Settings => (self.t(Msg::NavSettings), self.t(Msg::SubSettings)),
             Page::About => (self.t(Msg::NavAbout), self.t(Msg::SubAbout)),
@@ -337,7 +335,7 @@ impl CashFlowApp {
             )
     }
 
-    /// Shown when the opt-in update check found a newer release.
+    /// Shown when the update check found a newer release.
     fn update_banner(&self, p: Pal, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         let release = self.update.clone()?;
         let text = self.tf(Msg::UpdateAvailable, &[("version", &release.version)]);
@@ -355,6 +353,12 @@ impl CashFlowApp {
                 .bg(p.primary.opacity(0.08))
                 .text_sm()
                 .child(div().flex_1().child(text))
+                // The file for this computer, when the release has one; the browser downloads it.
+                .when_some(release.download.clone(), |row, file| {
+                    row.child(Button::new("update-download").primary().small().label(self.t(Msg::UpdateDownload)).on_click(
+                        cx.listener(move |_, _, _, cx| cx.open_url(&file)),
+                    ))
+                })
                 .child(Button::new("update-view").outline().small().label(self.t(Msg::UpdateView)).on_click(
                     cx.listener(move |_, _, _, cx| cx.open_url(&release.url)),
                 ))
@@ -549,10 +553,6 @@ impl CashFlowApp {
                             .child(Input::new(&self.amount_in).id("entry-amount")),
                     ),
             )
-            .child(h_flex().child(
-                pill("repeat-toggle".into(), self.t(Msg::RepeatMonthly).to_string(), None, self.repeat, p)
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_repeat(cx))),
-            ))
             .child(
                 h_flex()
                     .gap_2()
@@ -614,6 +614,16 @@ impl CashFlowApp {
                     .text_color(p.muted_fg)
                     .child(self.t(Msg::NothingRecorded)),
             );
+            // The month before has entries: start from those.
+            if let Some(from) = self.copy_source() {
+                let label = self.tf(Msg::CopyPreviousMonth, &[("month", &self.lc.month_inline(from))]);
+                body = body.child(h_flex().justify_center().child(
+                    Button::new("copy-previous")
+                        .outline()
+                        .label(label)
+                        .on_click(cx.listener(|this, _, _, cx| this.copy_previous_month(cx))),
+                ));
+            }
         }
         card(p)
             .flex_shrink_0()
@@ -1335,6 +1345,47 @@ impl CashFlowApp {
                         )),
                 )
         });
+        let reset_prompt = self.pending_reset.map(|what| {
+            let (text, label) = match what {
+                Reset::Settings => (Msg::ConfirmResetSettings, Msg::ResetSettings),
+                Reset::Data => (Msg::ConfirmResetData, Msg::ResetData),
+            };
+            v_flex()
+                .gap_2()
+                .p_3()
+                .rounded_md()
+                .border_1()
+                .border_color(p.danger)
+                .bg(p.danger.opacity(0.08))
+                .child(div().text_sm().child(self.t(text)))
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .child(Button::new("reset-confirm").danger().label(self.t(label)).on_click(
+                            cx.listener(|this, _, window, cx| this.confirm_reset(window, cx)),
+                        ))
+                        .child(Button::new("reset-cancel").outline().label(self.t(Msg::Cancel)).on_click(
+                            cx.listener(|this, _, _, cx| this.cancel_reset(cx)),
+                        )),
+                )
+        });
+        let reset_card = card(p)
+            .gap_3()
+            .child(heading(self.t(Msg::ResetTitle)))
+            .child(hint(self.t(Msg::ResetHelp)))
+            .child(
+                h_flex()
+                    .flex_wrap()
+                    .gap_2()
+                    .child(Button::new("reset-settings").outline().label(self.t(Msg::ResetSettings)).on_click(
+                        cx.listener(|this, _, _, cx| this.ask_reset(Reset::Settings, cx)),
+                    ))
+                    .child(Button::new("reset-data").outline().label(self.t(Msg::ResetData)).on_click(
+                        cx.listener(|this, _, _, cx| this.ask_reset(Reset::Data, cx)),
+                    )),
+            )
+            .children(reset_prompt)
+            .into_any_element();
         let backup_card = card(p)
             .gap_3()
             .child(heading(self.t(Msg::BackupTitle)))
@@ -1373,21 +1424,9 @@ impl CashFlowApp {
             )
             .into_any_element();
 
-        // The chart's names come first, then language and look, then data; the rest is under "Advanced".
-        // What is needed now and then comes first. The rest is grouped under "Advanced".
-        let advanced = v_flex()
-            .gap_4()
-            .child(
-                h_flex()
-                    .id("settings-advanced")
-                    .test_support()
-                    .items_baseline()
-                    .gap_2()
-                    .child(heading(self.t(Msg::SettingsAdvanced))),
-            )
-            .child(updates_card)
-            .child(mcp_card)
-            .into_any_element();
+        // The chart's names come first, then language and look, then data; what is needed least
+        // (the update check and the AI assistant) comes after, and the resets last.
+        let rarely = v_flex().gap_4().child(updates_card).child(mcp_card).into_any_element();
 
         // Columns share the width, up to 560 px each, so nothing is cut off at any window width.
         let column = || v_flex().flex_1().min_w_0().max_w(px(560.0)).gap_4();
@@ -1397,7 +1436,7 @@ impl CashFlowApp {
                 .gap_4()
                 .w_full()
                 .child(column().child(labels_card).child(lang_card).child(theme_card))
-                .child(column().child(backup_card).child(advanced))
+                .child(column().child(backup_card).child(rarely).child(reset_card))
         } else {
             v_flex()
                 .w_full()
@@ -1407,83 +1446,10 @@ impl CashFlowApp {
                 .child(lang_card)
                 .child(theme_card)
                 .child(backup_card)
-                .child(advanced)
+                .child(rarely)
+                .child(reset_card)
         };
         v_flex().id("settings-scroll").test_support().flex_1().min_h_0().overflow_y_scroll().p_6().child(body)
-    }
-
-    // ---- recurring entries ----
-
-    fn recurring_page(&self, p: Pal, cx: &mut Context<Self>) -> impl IntoElement {
-        let mut rows = v_flex().gap_1();
-        for r in &self.recurring.items {
-            let id = r.id;
-            let cat = self.cats.get(r.category_id);
-            let color = cat.map_or(0x888888, |c| c.color);
-            let cat_name = cat.map(|c| c.name.clone()).unwrap_or_default();
-            let (sign, amount_color) = match cat.map(|c| c.kind) {
-                Some(Kind::Income) => ("+", p.success),
-                _ => (self.lc.minus(), p.fg),
-            };
-            let from = self.lc.month_inline(r.start);
-            let span = match r.end {
-                None => self.tf(Msg::RecurringSince, &[("from", &from)]),
-                Some(end) => self.tf(Msg::RecurringRange, &[("from", &from), ("to", &self.lc.month_inline(end))]),
-            };
-            let (title, subtitle) = if r.name.is_empty() {
-                (cat_name, span)
-            } else {
-                (r.name.clone(), format!("{cat_name} · {span}"))
-            };
-            // Once it has an end month it is stopped; only a running one offers Stop.
-            let running = r.end.is_none();
-            rows = rows.child(
-                h_flex()
-                    .id(id_of("rec", id))
-                    .test_support()
-                    .gap_3()
-                    .items_center()
-                    .px_2()
-                    .py_1()
-                    .rounded_md()
-                    .hover(|d| d.bg(p.muted))
-                    .child(div().size_3().flex_shrink_0().rounded_full().bg(hsla(color)))
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .child(div().text_sm().font_weight(FontWeight::MEDIUM).child(title))
-                            .child(div().text_xs().text_color(p.muted_fg).child(subtitle)),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(amount_color)
-                            .child(format!("{sign}{}", self.lc.money(r.amount_cents))),
-                    )
-                    .when(running, |row| {
-                        row.child(Button::new(id_of("rec-stop", id)).ghost().small().label(self.t(Msg::RecurringStop)).on_click(
-                            cx.listener(move |this, _, _, cx| this.stop_recurring(id, cx)),
-                        ))
-                    })
-                    .child(Button::new(id_of("rec-del", id)).ghost().small().icon(IconName::X).on_click(
-                        cx.listener(move |this, _, _, cx| this.delete_recurring(id, cx)),
-                    )),
-            );
-        }
-        if self.recurring.items.is_empty() {
-            rows = rows.child(
-                div().py_6().text_sm().text_center().text_color(p.muted_fg).child(self.t(Msg::RecurringEmpty)),
-            );
-        }
-        v_flex().id("recurring-scroll").flex_1().min_h_0().overflow_y_scroll().p_6().child(
-            v_flex()
-                .max_w(px(720.0))
-                .gap_4()
-                .child(div().text_sm().text_color(p.muted_fg).child(self.t(Msg::RecurringHelp)))
-                .child(card(p).gap_2().child(rows)),
-        )
     }
 
     // ---- categories ----
@@ -1519,35 +1485,29 @@ impl CashFlowApp {
             )
             .map(|(pid, label, color, depth)| {
                 tree_row(id_of("parent", pid.unwrap_or(0)), label, color, depth, self.cat_parent == pid, p)
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.cat_parent = pid;
-                        cx.notify();
-                    }))
+                    .on_click(cx.listener(move |this, _, _, cx| this.pick_parent(pid, cx)))
             })
             .collect();
 
-        let swatch_row = |colors: &[u32], cx: &mut Context<Self>| {
-            h_flex().flex_wrap().gap_2().children(colors.iter().map(|&color| {
-                let selected = self.cat_color == color;
-                div()
-                    .id(id_of("swatch", color as u64))
-                    .size_6()
-                    .rounded_full()
-                    .bg(hsla(color))
-                    .border_2()
-                    .border_color(if selected { p.fg } else { p.bg })
-                    .cursor_pointer()
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.cat_color = color;
-                        cx.notify();
-                    }))
-            }))
-        };
-        let swatches = v_flex()
-            .gap_2()
-            .child(swatch_row(&PALETTE, cx))
-            .child(swatch_row(&PALETTE_DARK, cx))
-            .child(swatch_row(&PALETTE_MUTED, cx));
+        // One row of colours. A colour that is not in it (a parent's, or one from before) is shown
+        // too, selected, so the picker never claims that nothing is chosen.
+        let mut colors = PALETTE.to_vec();
+        if !colors.contains(&self.cat_color) {
+            colors.push(self.cat_color);
+        }
+        let swatches = h_flex().flex_wrap().gap_2().children(colors.into_iter().map(|color| {
+            let selected = self.cat_color == color;
+            div()
+                .id(id_of("swatch", color as u64))
+                .test_support()
+                .size_6()
+                .rounded_full()
+                .bg(hsla(color))
+                .border_2()
+                .border_color(if selected { p.fg } else { p.bg })
+                .cursor_pointer()
+                .on_click(cx.listener(move |this, _, _, cx| this.pick_color(color, cx)))
+        }));
 
         card(p)
             .h_full()
@@ -1653,7 +1613,6 @@ impl Render for CashFlowApp {
         let page = match self.page {
             Page::Overview => self.overview(lay, p, cx),
             Page::Year => self.year_page(lay, p, cx),
-            Page::Recurring => self.recurring_page(p, cx).into_any_element(),
             Page::Categories => self.categories_page(p, cx).into_any_element(),
             Page::Settings => self.settings_page(lay, p, cx).into_any_element(),
             Page::About => self.about_page(lay, p, cx).into_any_element(),

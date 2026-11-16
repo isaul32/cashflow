@@ -11,19 +11,20 @@ Built with Rust and [GPUI Kit](https://gpui-kit.com).
 ## Features
 
 - Add, edit and delete income and expense entries per month
-- Recurring entries (rent, salary, subscriptions): tick "Repeat every month" when adding an entry and it
-  is added to each later month when you open it and it is still empty. Manage them on the Recurring page
+- Start a new month from the one before it: an empty month offers to copy last month's entries (rent, salary,
+  subscriptions), and you change what is different
 - Your own categories with colors and optional sub-categories (the chart gains a level per nesting)
-- Savings or deficit shown automatically
+- Savings or deficit shown automatically; the chart lists the largest categories first and the savings last
 - Yearly view: all months of a year in one Sankey chart, a per-month breakdown, and previous years one click away
 - Automatic saving, plain JSON files
-- Backup and export in Settings: save all your data (categories, recurring entries, all months) in one file and
+- Backup and export in Settings: save all your data (categories and all months) in one file and
   restore it later or on another computer, or export every entry as CSV for a spreadsheet. Restoring
   replaces the current data, after saving a copy of it in the `backups` folder of the data folder
+- Reset in Settings: all settings back to their defaults, or delete all data and start over (a copy of the data is saved first, in the same `backups` folder)
 - Light and dark theme
 - Optional MCP server (stdio): lets an AI assistant such as Claude Code read and manage your budget, see [MCP server](#mcp-server)
-- Optional update notice: off by default; when turned on in Settings (under Advanced), the app asks GitHub for the
-  latest release at startup and shows a link if a newer version exists. Nothing is installed automatically
+- Update notice: at startup the app asks GitHub for the latest release and shows a link if a newer version exists.
+  Nothing is installed automatically, and it can be turned off in Settings
 - Six languages: English, Finnish, Swedish, German, French and Spanish. The language follows your
   system by default and can be changed in Settings. Numbers, currency (EUR, USD, GBP, SEK, NOK, DKK,
   CHF) and month names are formatted the way each language expects, e.g. `€1,234.50` or `1 234,50 €`. The starter categories are translated too, as long as you have not edited them
@@ -54,7 +55,7 @@ Verify downloads with `SHA256SUMS.txt`.
 | Portable | `data\` next to `cashflow.exe` (enabled by the `portable` marker file in the zip) |
 | Any | The directory in the `BUDGET_DATA_DIR` environment variable, if set |
 
-All your data (categories, recurring entries and every month) is in one file, `data.json`. The
+All your data (categories and every month) is in one file, `data.json`. The
 previous save is kept as `data.json.bak`. `settings.json` holds the preferences of this computer: language,
 currency, theme and chart labels. Uninstalling does not delete your data.
 
@@ -66,7 +67,7 @@ the old files are moved to `legacy/`.
 ## MCP server
 
 CashFlow can be used by an AI assistant such as Claude Code through the [Model Context Protocol](https://modelcontextprotocol.io):
-it can read months and categories, add and edit entries, manage categories and recurring entries, change settings and
+it can read months and categories, add and edit entries, manage categories, copy a month into the next, change settings and
 export data. If the window is open, it shows the assistant's changes within a second.
 
 It works over **stdio**. The assistant starts `cashflow --mcp` itself, as a background process without a window, and
@@ -75,7 +76,7 @@ data files as the app, also while the window is open.
 
 It is **off by default**. To use it:
 
-1. Open Settings, and under **Advanced** turn on MCP server.
+1. Open Settings and turn on MCP server.
 2. Optionally turn on **Allow changes**. Without it the assistant can only read.
 3. Press **Copy Claude Code command** and run it once in a terminal. It looks like this:
 
@@ -98,9 +99,9 @@ Two things can write the data at once (the window and the assistant's process). 
 and always start from the latest saved data, so a change by one is not lost by the other.
 
 **Tools.** Reading: `get_state`, `list_categories`, `list_months`, `list_entries`, `get_month_summary`,
-`get_year_summary`, `list_recurring`, `get_settings`, `export_csv`, `export_backup` and `export_sankeymatic`.
+`get_year_summary`, `get_settings`, `export_csv`, `export_backup` and `export_sankeymatic`.
 Changing: `add_entry`, `update_entry`, `delete_entry`, `add_category`, `update_category`, `delete_category`,
-`update_recurring`, `stop_recurring`, `delete_recurring`, `set_settings`, `import_sankeymatic` and
+`copy_month`, `set_settings`, `import_sankeymatic` and
 `restore_backup`. Amounts are positive numbers in the app's currency; whether an entry is income or expense follows from
 its category. Months not given default to the current month. The tools are described to the assistant in full when it
 connects.

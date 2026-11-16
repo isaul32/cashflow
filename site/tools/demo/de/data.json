@@ -14,7 +14,7 @@
       },
       {
         "id": 2,
-        "name": "Freiberuf",
+        "name": "Sonstige Einnahmen",
         "kind": "Income",
         "parent": null,
         "color": 9159498
@@ -56,37 +56,27 @@
       },
       {
         "id": 8,
-        "name": "Nebenkosten",
-        "kind": "Expense",
-        "parent": 3,
-        "color": 7964363
-      },
-      {
-        "id": 9,
         "name": "Lebensmittel",
         "kind": "Expense",
         "parent": 4,
         "color": 16758605
       },
       {
-        "id": 10,
+        "id": 9,
         "name": "Restaurant",
         "kind": "Expense",
         "parent": 4,
         "color": 16747109
       },
       {
-        "id": 11,
+        "id": 10,
         "name": "Gesundheit",
         "kind": "Expense",
         "parent": null,
         "color": 15277667
       }
     ],
-    "next_id": 12
-  },
-  "recurring": {
-    "items": []
+    "next_id": 11
   },
   "months": {
     "2026-11": {
@@ -112,54 +102,48 @@
         {
           "id": 4,
           "category_id": 8,
-          "name": "Strom und Internet",
-          "amount_cents": 14000
-        },
-        {
-          "id": 5,
-          "category_id": 9,
           "name": "Wocheneinkauf",
           "amount_cents": 22000
         },
         {
-          "id": 6,
-          "category_id": 9,
+          "id": 5,
+          "category_id": 8,
           "name": "Großeinkauf",
           "amount_cents": 16000
         },
         {
-          "id": 7,
-          "category_id": 10,
+          "id": 6,
+          "category_id": 9,
           "name": "Mittagessen",
           "amount_cents": 9500
         },
         {
-          "id": 8,
-          "category_id": 10,
+          "id": 7,
+          "category_id": 9,
           "name": "Abendessen mit Freunden",
           "amount_cents": 6500
         },
         {
-          "id": 9,
+          "id": 8,
           "category_id": 5,
           "name": "Monatskarte",
           "amount_cents": 5500
         },
         {
-          "id": 10,
+          "id": 9,
           "category_id": 6,
           "name": "Streaming und Musik",
           "amount_cents": 4500
         },
         {
-          "id": 11,
+          "id": 10,
           "category_id": 6,
           "name": "Kletterhalle",
           "amount_cents": 12000
         },
         {
-          "id": 12,
-          "category_id": 11,
+          "id": 11,
+          "category_id": 10,
           "name": "Apotheke",
           "amount_cents": 7000
         }

@@ -12,8 +12,8 @@ use crate::model::{Categories, Category, CategoryId, Entry, Kind};
 use crate::settings::Labels;
 
 /// Layout relaxation passes of the chart. Zero keeps the node order we build
-/// (income, expenses in category order, savings last) instead of letting the
-/// layout reshuffle nodes.
+/// (largest first at every level, savings last) instead of letting the layout
+/// reshuffle nodes.
 pub const SANKEY_ITERATIONS: usize = 0;
 
 pub const SAVINGS_COLOR: u32 = 0x009688;
@@ -144,8 +144,11 @@ pub fn build_with(cats: &Categories, entries: &[Entry], labels: &Labels) -> Sank
             .filter(|c| c.kind == kind && c.parent.is_none())
             .collect()
     };
-    let income_roots = roots(Kind::Income);
-    let expense_roots = roots(Kind::Expense);
+    // The largest category is on top, so the chart reads from the biggest to the smallest.
+    let mut income_roots = roots(Kind::Income);
+    b.sort_largest_first(&mut income_roots);
+    let mut expense_roots = roots(Kind::Expense);
+    b.sort_largest_first(&mut expense_roots);
 
     let income: i64 = income_roots.iter().map(|c| b.subtree_total(c.id)).sum();
     let expense: i64 = expense_roots.iter().map(|c| b.subtree_total(c.id)).sum();
@@ -219,9 +222,17 @@ impl Builder<'_> {
             Kind::Expense => self.link(anchor, node, value),
         }
         let cats = self.cats;
-        for child in cats.children(cat.id) {
+        let mut children: Vec<&Category> = cats.children(cat.id).collect();
+        self.sort_largest_first(&mut children);
+        for child in children {
             self.place(child, node, kind);
         }
+    }
+
+    /// Largest total (with sub-categories) first. Equal totals go by name, then by id, so the
+    /// order never depends on how the categories happen to be stored.
+    fn sort_largest_first(&self, categories: &mut [&Category]) {
+        categories.sort_by_key(|c| (std::cmp::Reverse(self.subtree_total(c.id)), crate::model::name_key(&c.name), c.id));
     }
 }
 
@@ -449,5 +460,77 @@ mod tests {
             let lowest = g.nodes.iter().filter(|n| n.layer == layer).all(|n| n.y0 <= g.nodes[sav].y0);
             assert!(lowest, "{name}: savings is not the lowest node");
         }
+    }
+
+    fn labels(d: &SankeyData) -> Vec<&str> {
+        d.nodes.iter().map(|n| n.label.as_str()).collect()
+    }
+
+    /// Categories and entries whose sizes differ from the order they were made in.
+    fn sample() -> (Categories, Vec<Entry>) {
+        let mut cats = Categories::default(); // ids: Salary 1, Other income 2, Housing 3, Food 4, Transport 5, Leisure 6
+        let groceries = cats.add("Groceries", Kind::Expense, Some(4), 0x111111);
+        let restaurants = cats.add("Restaurants", Kind::Expense, Some(4), 0x222222);
+        let entries = vec![
+            entry(1, 1, 3000),
+            entry(2, 2, 200),
+            entry(3, 3, 800),
+            entry(4, groceries, 150),
+            entry(5, restaurants, 300),
+            entry(6, 5, 20),
+            entry(7, 6, 400),
+        ];
+        (cats, entries)
+    }
+
+    #[test]
+    fn the_largest_category_is_on_top_and_savings_come_last() {
+        let (cats, entries) = sample();
+        let d = build(&cats, &entries);
+        // Income and expenses by size (Food counts with its sub-categories: 450), sub-categories
+        // under their parent by size, and Savings at the bottom.
+        assert_eq!(
+            labels(&d),
+            vec!["Total income", "Salary", "Other income", "Housing", "Food", "Restaurants", "Groceries", "Leisure", "Transport", "Savings"]
+        );
+    }
+
+    #[test]
+    fn equal_amounts_are_ordered_by_name_and_a_deficit_stays_after_the_income() {
+        let mut cats = Categories::default();
+        cats.items.clear();
+        let salary = cats.add("Salary", Kind::Income, None, 0x1);
+        let beta = cats.add("Beta", Kind::Expense, None, 0x2);
+        let alpha = cats.add("alpha", Kind::Expense, None, 0x3);
+        let big = cats.add("Zebra", Kind::Expense, None, 0x4);
+        let entries = vec![entry(1, salary, 100), entry(2, beta, 500), entry(3, alpha, 500), entry(4, big, 900)];
+        let d = build(&cats, &entries);
+        // More is spent than earned: the deficit is the last of the income side, then the expenses
+        // largest first, and equal ones alphabetically (case does not matter).
+        assert_eq!(labels(&d), vec!["Total income", "Salary", "Deficit", "Zebra", "alpha", "Beta"]);
+        assert!(!labels(&d).contains(&"Savings"));
+    }
+
+    /// What the chart draws, not just the order of the nodes: the layout must keep it.
+    #[test]
+    fn the_chart_draws_the_largest_category_at_the_top() {
+        use gpui_kit::component::plot::shape::{Sankey, SankeyAlign, SankeyLink};
+
+        let (cats, entries) = sample();
+        let d = build(&cats, &entries);
+        let links: Vec<SankeyLink> = d.links.iter().map(|l| SankeyLink::new(l.source, l.target, l.value)).collect();
+        let g = Sankey::new()
+            .iterations(SANKEY_ITERATIONS)
+            .node_align(SankeyAlign::Left)
+            .node_padding(34.0)
+            .extent(0.0, 0.0, 1000.0, 600.0)
+            .layout(d.nodes.len(), &links)
+            .unwrap();
+        let y = |label: &str| g.nodes[d.nodes.iter().position(|n| n.label == label).expect(label)].y0;
+
+        assert!(y("Housing") < y("Food") && y("Food") < y("Leisure") && y("Leisure") < y("Transport"));
+        assert!(y("Salary") < y("Other income"));
+        assert!(y("Restaurants") < y("Groceries"), "sub-categories too");
+        assert!(y("Savings") > y("Transport"), "savings are below every expense");
     }
 }

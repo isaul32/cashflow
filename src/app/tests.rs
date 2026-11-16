@@ -40,6 +40,8 @@ pub(crate) fn open_sized(
         language: Some(Lang::En),
         currency: Some(Currency::Eur),
         theme: Some(ThemeChoice::Light),
+        // On by default, but tests must never contact GitHub.
+        check_updates: false,
         ..Settings::default()
     })
     .unwrap();
@@ -331,7 +333,6 @@ fn the_sidebar_reaches_every_page(cx: &mut TestAppContext) {
         (Msg::NavSettings, Page::Settings),
         (Msg::NavAbout, Page::About),
         (Msg::NavCategories, Page::Categories),
-        (Msg::NavRecurring, Page::Recurring),
         (Msg::NavYear, Page::Year),
         (Msg::NavOverview, Page::Overview),
     ];
@@ -341,86 +342,64 @@ fn the_sidebar_reaches_every_page(cx: &mut TestAppContext) {
     }
 }
 
-#[gpui_kit::test]
-fn a_repeating_entry_is_added_to_the_next_month_when_it_is_opened(cx: &mut TestAppContext) {
-    let env = open(cx, "repeat", |_, _| {});
-    let housing = env.cat(cx, "Housing");
-    let today = this_month();
-
-    env.click(cx, format!("cat-{housing}"));
-    env.type_into(cx, "entry-name", "Rent");
-    env.type_into(cx, "entry-amount", "800");
-    env.click(cx, "repeat-toggle");
-    env.click(cx, "submit");
-    env.read(cx, |app| {
-        assert_eq!(app.recurring.items.len(), 1);
-        assert!(!app.repeat, "the toggle resets for the next entry");
-        assert_eq!(app.entries.len(), 1);
+/// The entry list sits below the entry form in a scrolling column. Depending on the platform's
+/// font metrics the list can start below the fold, so scroll to the end before clicking in it.
+/// The wheel is aimed at the submit button: over the middle of the column it would land on the
+/// category picker, which is a scroll area of its own and would take the scrolling.
+fn scroll_list_into_view(env: &Env, cx: &mut TestAppContext) {
+    env.ui(cx, |window, cx| {
+        window.scroll("submit", ScrollDelta::Pixels(point(px(0.), px(-4000.))), cx);
     });
+}
 
-    // The month before the start and the months in between are not touched...
-    env.click(cx, "month-prev");
+#[gpui_kit::test]
+fn an_empty_month_can_start_from_the_one_before(cx: &mut TestAppContext) {
+    let env = open(cx, "copy", |st, cats| {
+        let (food, housing) = (category_id(cats, "Food"), category_id(cats, "Housing"));
+        let last_month = MonthData { entries: vec![entry(5, housing, "Rent", 80000), entry(9, food, "Lunch", 990)] };
+        st.save_month(this_month().prev(), &last_month).unwrap();
+    });
+    // This month is empty and the one before it is not: the empty list offers a way to start.
     env.read(cx, |app| assert!(app.entries.is_empty()));
-    env.click(cx, "month-today");
-    // ...the next month gets the entry the moment it is opened.
-    env.click(cx, "month-next");
+    assert!(env.exists(cx, "copy-previous"));
+
+    scroll_list_into_view(&env, cx);
+    env.click(cx, "copy-previous");
     env.read(cx, |app| {
-        assert_eq!(app.month, today.next());
-        assert_eq!(app.entries.len(), 1);
-        let e = &app.entries[0];
-        assert_eq!((e.name.as_str(), e.category_id, e.amount_cents), ("Rent", housing, 80000));
+        // The same entries, numbered afresh for this month.
+        let copied: Vec<_> = app.entries.iter().map(|e| (e.id, e.name.as_str(), e.amount_cents)).collect();
+        assert_eq!(copied, vec![(1, "Rent", 80000), (2, "Lunch", 990)]);
+        assert!(app.notice.is_some());
     });
-    // Months nobody opened stay empty.
-    assert!(env.st.load_month(today.next().next()).entries.is_empty());
-    assert!(env.st.load_month(today.prev()).entries.is_empty());
+    assert_eq!(env.st.load_month(this_month()).entries.len(), 2, "it was saved");
+    assert_eq!(env.st.load_month(this_month().prev()).entries.len(), 2, "the month it came from is untouched");
+    assert!(!env.exists(cx, "copy-previous"), "the month is no longer empty");
+
+    // The copy is a month of its own: changing it leaves the other alone.
+    scroll_list_into_view(&env, cx);
+    env.click(cx, "del-1");
+    assert_eq!(env.st.load_month(this_month()).entries.len(), 1);
+    assert_eq!(env.st.load_month(this_month().prev()).entries.len(), 2);
 }
 
 #[gpui_kit::test]
-fn recurring_entries_can_be_stopped_and_deleted(cx: &mut TestAppContext) {
-    let env = open(cx, "recurring-page", |st, cats| {
-        let housing = category_id(cats, "Housing");
-        let mut store = crate::recurring::RecurringStore::default();
-        store.add(housing, "Rent".into(), 80000, this_month());
-        st.save_recurring(&store).unwrap();
-        st.save_month(this_month(), &MonthData { entries: vec![entry(1, housing, "Rent", 80000)] }).unwrap();
-    });
-    env.click(cx, Msg::NavRecurring.text(Lang::En));
-    assert!(env.exists(cx, "rec-1"));
-    assert!(env.exists(cx, "rec-stop-1"));
+fn the_copy_button_needs_an_empty_month_after_one_with_entries(cx: &mut TestAppContext) {
+    // Nothing to copy from.
+    let env = open(cx, "copy-nothing", |_, _| {});
+    assert!(!env.exists(cx, "copy-previous"));
 
-    env.click(cx, "rec-stop-1");
-    env.read(cx, |app| assert_eq!(app.recurring.items[0].end, Some(this_month())));
-    assert!(!env.exists(cx, "rec-stop-1"), "an ended entry cannot be stopped again");
-    assert_eq!(env.st.load_recurring().items[0].end, Some(this_month()));
-
-    env.click(cx, "rec-del-1");
-    env.read(cx, |app| {
-        assert!(app.recurring.items.is_empty());
-        // Entries it already added stay.
-        assert_eq!(app.entries.len(), 1);
-    });
-    assert!(env.st.load_recurring().items.is_empty());
-    assert!(!env.exists(cx, "rec-1"));
-}
-
-#[gpui_kit::test]
-fn an_edited_entry_can_be_made_recurring_once(cx: &mut TestAppContext) {
-    let env = open(cx, "edit-repeat", |st, cats| {
+    // This month and the one before both have entries: nothing is empty, so nothing is offered.
+    let env = open(cx, "copy-both", |st, cats| {
         let food = category_id(cats, "Food");
-        st.save_month(this_month(), &MonthData { entries: vec![entry(1, food, "Gym", 3000)] }).unwrap();
+        st.save_month(this_month(), &MonthData { entries: vec![entry(1, food, "Now", 100)] }).unwrap();
+        st.save_month(this_month().prev(), &MonthData { entries: vec![entry(1, food, "Before", 200)] }).unwrap();
     });
-    for _ in 0..2 {
-        env.click(cx, "edit-1");
-        env.click(cx, "repeat-toggle");
-        env.click(cx, "submit");
-    }
-    // The second time the same values already repeat, so there is no second template.
-    env.read(cx, |app| {
-        assert_eq!(app.recurring.items.len(), 1);
-        assert_eq!(app.recurring.items[0].name, "Gym");
-        assert_eq!(app.entries.len(), 1);
-    });
-    assert_eq!(env.st.load_recurring().items.len(), 1);
+    assert!(!env.exists(cx, "copy-previous"));
+    // The next month is empty and this one has entries: now it is offered.
+    env.click(cx, "month-next");
+    assert!(env.exists(cx, "copy-previous"));
+    env.click(cx, "copy-previous");
+    env.read(cx, |app| assert_eq!(app.entries.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), vec!["Now"]));
 }
 
 #[gpui_kit::test]
@@ -501,18 +480,20 @@ fn the_theme_choice_is_applied_and_saved(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
-fn the_update_check_is_off_by_default(cx: &mut TestAppContext) {
+fn the_update_check_can_be_turned_off_and_is_remembered(cx: &mut TestAppContext) {
     let env = open(cx, "updates", |_, _| {});
+    // The app is on by default; the test fixture turns it off so that no test contacts GitHub.
+    // Pretend it is on, as it is for a user who never touched it, without starting a check.
+    env.modify(cx, |app| app.settings.check_updates = true);
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+    assert!(env.exists(cx, "updates-false") && env.exists(cx, "updates-true"));
+
+    env.click(cx, "updates-false");
     env.read(cx, |app| {
         assert!(!app.settings.check_updates);
         assert!(app.update.is_none());
     });
-    env.click(cx, Msg::NavSettings.text(Lang::En));
-    // Both choices are there; "Off" is the selected one. (Turning it on would contact GitHub.)
-    assert!(env.exists(cx, "updates-false"));
-    assert!(env.exists(cx, "updates-true"));
-    env.click(cx, "updates-false");
-    assert!(!env.st.load_settings().value.check_updates);
+    assert!(!env.st.load_settings().value.check_updates, "the choice is saved");
 }
 
 #[gpui_kit::test]
@@ -562,7 +543,7 @@ fn adapts_to_small_and_large_windows(cx: &mut TestAppContext) {
     let handle = env.handle;
     for (w, h) in [(900.0, 620.0), (820.0, 640.0), (1700.0, 1000.0), (1360.0, 860.0)] {
         cx.simulate_window_resize(handle, size(px(w), px(h)));
-        for page in [Msg::NavOverview, Msg::NavYear, Msg::NavSettings, Msg::NavRecurring] {
+        for page in [Msg::NavOverview, Msg::NavYear, Msg::NavSettings] {
             env.click(cx, page.text(Lang::En));
             // Everything stays reachable: the navigation and the page header are on screen.
             env.ui(cx, |window, _| {
@@ -692,11 +673,11 @@ fn the_settings_page_fits_the_window_at_every_width(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
-fn the_advanced_settings_are_all_shown_under_their_heading(cx: &mut TestAppContext) {
+fn the_update_check_and_the_assistant_are_on_the_page_without_unfolding_anything(cx: &mut TestAppContext) {
     let env = open(cx, "advanced", |_, _| {});
     env.click(cx, Msg::NavSettings.text(Lang::En));
     // Nothing is folded away: the update check and the MCP server are there at once.
-    for id in ["lang-None", "theme-None", "label-total", "backup-save", "settings-advanced", "updates-false", "mcp-true"] {
+    for id in ["lang-None", "theme-None", "label-total", "backup-save", "updates-false", "mcp-true"] {
         assert!(env.exists(cx, id), "{id}");
     }
     assert!(!env.exists(cx, "mcp-changes-true"), "the MCP details still follow its own switch");
@@ -708,7 +689,7 @@ fn the_everyday_settings_come_before_the_rest(cx: &mut TestAppContext) {
     let env = open_sized(cx, "settings-order", 1100.0, 860.0, |_, _| {});
     env.click(cx, Msg::NavSettings.text(Lang::En));
     env.ui(cx, |window, _| {
-        let tops: Vec<_> = ["label-total", "lang-None", "theme-None", "backup-save", "settings-advanced", "updates-false", "mcp-true"]
+        let tops: Vec<_> = ["label-total", "lang-None", "theme-None", "backup-save", "updates-false", "mcp-true"]
             .iter()
             .map(|id| window.find(*id).bounds().top())
             .collect();
@@ -762,4 +743,219 @@ fn automatic_language_translates_the_starter_categories_when_the_app_starts(cx: 
         assert_eq!(app.cats.items.iter().map(|c| c.name.clone()).collect::<Vec<_>>(), fi.items.iter().map(|c| c.name.clone()).collect::<Vec<_>>());
     });
     assert_eq!(env.st.load_categories().get(4).unwrap().name, fi.get(4).unwrap().name);
+}
+
+#[gpui_kit::test]
+fn a_newer_release_offers_a_direct_download_and_the_release_page(cx: &mut TestAppContext) {
+    use crate::update::Release;
+    let env = open(cx, "update-banner", |_, _| {});
+    assert!(!env.exists(cx, "update-view"), "no banner without a newer release");
+
+    let page = "https://github.com/isaul32/cashflow/releases/tag/v9.9.9";
+    let file = "https://github.com/isaul32/cashflow/releases/download/v9.9.9/cashflow-9.9.9-windows-x64-setup.exe";
+    env.modify(cx, |app| {
+        app.update = Some(Release { version: "9.9.9".into(), url: page.into(), download: Some(file.into()) });
+    });
+    assert!(env.exists(cx, "update-download") && env.exists(cx, "update-view"));
+
+    env.click(cx, "update-download");
+    assert_eq!(cx.opened_url().as_deref(), Some(file), "the file itself, not the page");
+    env.click(cx, "update-view");
+    assert_eq!(cx.opened_url().as_deref(), Some(page));
+    env.read(cx, |app| assert!(app.update.is_some(), "opening a link does not dismiss the notice"));
+
+    // A release that has no file for this computer shows only the page.
+    env.modify(cx, |app| app.update = Some(Release { version: "9.9.9".into(), url: page.into(), download: None }));
+    assert!(!env.exists(cx, "update-download") && env.exists(cx, "update-view"));
+
+    env.click(cx, "update-dismiss");
+    env.read(cx, |app| assert!(app.update.is_none()));
+}
+
+#[gpui_kit::test]
+fn the_colour_picker_is_one_row_and_a_new_category_takes_its_parents_colour(cx: &mut TestAppContext) {
+    let env = open(cx, "cat-colour", |_, _| {});
+    env.click(cx, Msg::NavCategories.text(Lang::En));
+    let swatch = |color: u32| format!("swatch-{color}");
+
+    // One row of colours: the vivid ones are there, the darker and softer rows of before are not.
+    assert!(env.exists(cx, swatch(0x3F51B5)));
+    assert!(!env.exists(cx, swatch(0x1A237E)) && !env.exists(cx, swatch(0x8E99C4)));
+
+    // Choosing a parent gives the new category the parent's colour...
+    let (food, rent) = (env.cat(cx, "Food"), env.cat(cx, "Rent"));
+    let (food_color, rent_color) = env.read(cx, |app| (app.cats.get(food).unwrap().color, app.cats.get(rent).unwrap().color));
+    env.click(cx, format!("parent-{food}"));
+    env.read(cx, |app| assert_eq!(app.cat_color, food_color));
+    env.type_into(cx, "cat-name", "Snacks");
+    env.click(cx, "add-cat");
+    let snacks = env.cat(cx, "Snacks");
+    env.read(cx, |app| {
+        let c = app.cats.get(snacks).unwrap();
+        assert_eq!((c.parent, c.color), (Some(food), food_color));
+    });
+
+    // ...also one that is not in the row: it is shown there, selected.
+    env.click(cx, "parent-0");
+    env.click(cx, format!("parent-{rent}"));
+    env.read(cx, |app| assert_eq!(app.cat_color, rent_color));
+    assert!(env.exists(cx, swatch(rent_color)), "the parent's colour is in the picker");
+
+    // Without a parent it goes back to the palette's next colour.
+    env.click(cx, "parent-0");
+    env.read(cx, |app| assert_eq!(app.cat_color, PALETTE[app.cats.items.len() % PALETTE.len()]));
+
+    // A colour the user picked is theirs: choosing a parent afterwards does not change it.
+    env.click(cx, swatch(0x4CAF50));
+    env.click(cx, format!("parent-{food}"));
+    env.read(cx, |app| assert_eq!(app.cat_color, 0x4CAF50));
+    env.type_into(cx, "cat-name", "Treats");
+    env.click(cx, "add-cat");
+    let treats = env.cat(cx, "Treats");
+    env.read(cx, |app| assert_eq!(app.cats.get(treats).unwrap().color, 0x4CAF50));
+    // After adding, the form starts over: no parent and no chosen colour.
+    env.read(cx, |app| assert!(app.cat_parent.is_none() && !app.cat_color_chosen));
+}
+
+#[gpui_kit::test]
+fn changing_the_parent_of_an_existing_category_keeps_its_colour(cx: &mut TestAppContext) {
+    let env = open(cx, "cat-colour-edit", |_, _| {});
+    env.click(cx, Msg::NavCategories.text(Lang::En));
+    let (leisure, health) = (env.cat(cx, "Leisure"), env.cat(cx, "Health"));
+    let color = env.read(cx, |app| app.cats.get(health).unwrap().color);
+    env.click(cx, format!("catedit-{health}"));
+    env.click(cx, format!("parent-{leisure}"));
+    env.read(cx, |app| assert_eq!(app.cat_color, color, "only a new category follows its parent"));
+    env.click(cx, "add-cat");
+    env.read(cx, |app| {
+        let c = app.cats.get(health).unwrap();
+        assert_eq!((c.parent, c.color), (Some(leisure), color));
+    });
+}
+
+/// Scrolls the settings page to the end, where the reset buttons are.
+fn scroll_settings_to_the_end(env: &Env, cx: &mut TestAppContext) {
+    env.ui(cx, |window, cx| {
+        window.scroll("settings-scroll", ScrollDelta::Pixels(point(px(0.), px(-6000.))), cx);
+    });
+}
+
+#[gpui_kit::test]
+fn all_settings_can_be_reset_after_confirming(cx: &mut TestAppContext) {
+    let env = open(cx, "reset-settings", |st, cats| {
+        st.save_month(this_month(), &MonthData { entries: vec![entry(1, category_id(cats, "Food"), "Lunch", 990)] }).unwrap();
+    });
+    // The system speaks English, so "automatic" means English here whatever the machine says.
+    env.modify(cx, |app| {
+        app.system = SystemLocale { lang: Some(Lang::En), region: Some("FI".into()) };
+        app.settings.language = Some(Lang::Fi);
+        app.settings.theme = Some(ThemeChoice::Dark);
+        app.settings.check_updates = false;
+        app.settings.mcp.enabled = true;
+        app.settings.mcp.allow_changes = true;
+        app.settings.labels.total = "Mine".into();
+    });
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+    scroll_settings_to_the_end(&env, cx);
+
+    // Nothing happens until it is confirmed, and it can be called off.
+    env.click(cx, "reset-settings");
+    scroll_settings_to_the_end(&env, cx);
+    assert!(env.exists(cx, "reset-confirm"));
+    env.click(cx, "reset-cancel");
+    assert!(!env.exists(cx, "reset-confirm"));
+    env.read(cx, |app| assert_eq!(app.settings.language, Some(Lang::Fi)));
+
+    env.click(cx, "reset-settings");
+    scroll_settings_to_the_end(&env, cx);
+    env.click(cx, "reset-confirm");
+    env.read(cx, |app| {
+        assert_eq!(app.settings, Settings::default(), "every setting is back to its default");
+        assert!(app.settings.check_updates && !app.settings.mcp.enabled && !app.settings.mcp.allow_changes);
+        assert_eq!(app.lc.lang, Lang::En, "automatic follows the system again");
+        assert!(app.notice.is_some());
+        // The data is not touched.
+        assert_eq!(app.entries.len(), 1);
+    });
+    assert_eq!(env.st.load_settings().value, Settings::default(), "it was saved");
+    assert_eq!(env.st.load_month(this_month()).entries.len(), 1);
+    assert!(!env.exists(cx, "reset-confirm"));
+    // The chart's names are the standard ones again.
+    env.read_inputs(cx, |app, cx| assert_eq!(app.total_in.read(cx).value().as_ref(), "Total income"));
+}
+
+#[gpui_kit::test]
+fn all_data_can_be_deleted_after_confirming_and_a_copy_is_kept(cx: &mut TestAppContext) {
+    let env = open(cx, "reset-data", |st, cats| {
+        let mut cats = cats.clone();
+        cats.add("Pets", Kind::Expense, None, 0x112233);
+        st.save_categories(&cats).unwrap();
+        let food = category_id(&cats, "Food");
+        st.save_month(this_month(), &MonthData { entries: vec![entry(1, food, "Lunch", 990)] }).unwrap();
+        st.save_month(this_month().prev(), &MonthData { entries: vec![entry(1, food, "Old", 500)] }).unwrap();
+    });
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+    scroll_settings_to_the_end(&env, cx);
+
+    // Called off: everything stays.
+    env.click(cx, "reset-data");
+    scroll_settings_to_the_end(&env, cx);
+    env.click(cx, "reset-cancel");
+    env.read(cx, |app| assert_eq!(app.entries.len(), 1));
+    assert_eq!(env.st.list_months().len(), 2);
+
+    env.click(cx, "reset-data");
+    scroll_settings_to_the_end(&env, cx);
+    env.click(cx, "reset-confirm");
+    let starter = Categories::defaults_for(Lang::En);
+    env.read(cx, |app| {
+        assert!(app.entries.is_empty());
+        assert_eq!(app.cats, starter, "the starter categories are back, in the language of the app");
+        assert!(app.notice.is_some());
+    });
+    assert!(env.st.list_months().is_empty());
+    assert_eq!(env.st.load_categories(), starter);
+    // Settings are not data: they stay.
+    assert_eq!(env.st.load_settings().value.language, Some(Lang::En));
+
+    // A copy of what was deleted is where a restore's copy goes, and it is a backup that can be restored.
+    let copies: Vec<_> = std::fs::read_dir(env.st.dir().join("backups")).unwrap().flatten().collect();
+    assert_eq!(copies.len(), 1);
+    let saved = crate::backup::parse(&std::fs::read_to_string(copies[0].path()).unwrap()).unwrap();
+    assert_eq!(saved.months.len(), 2);
+    assert!(saved.categories.items.iter().any(|c| c.name == "Pets"));
+}
+
+#[gpui_kit::test]
+fn only_one_reset_question_is_asked_at_a_time(cx: &mut TestAppContext) {
+    let env = open(cx, "reset-one", |_, _| {});
+    env.click(cx, Msg::NavSettings.text(Lang::En));
+    scroll_settings_to_the_end(&env, cx);
+    env.click(cx, "reset-data");
+    scroll_settings_to_the_end(&env, cx);
+    env.click(cx, "reset-settings");
+    scroll_settings_to_the_end(&env, cx);
+    env.read(cx, |app| assert!(app.pending_reset == Some(Reset::Settings)), );
+    env.click(cx, "reset-confirm");
+    // Confirming answered the second question only: the data is as it was (empty, but the file was not replaced).
+    assert!(!env.st.dir().join("backups").exists(), "deleting data was not what was confirmed");
+}
+
+/// The screenshots show the demo data in `site/tools/demo`. It must use the starter categories
+/// exactly, so the images never show categories that a new user does not get.
+#[test]
+fn the_demo_data_uses_the_starter_categories() {
+    for (code, lang) in [("en", Lang::En), ("fi", Lang::Fi), ("sv", Lang::Sv), ("de", Lang::De), ("fr", Lang::Fr), ("es", Lang::Es)] {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("site/tools/demo").join(code);
+        let st = Storage::new(&dir);
+        let cats = st.load_categories();
+        assert_eq!(cats, Categories::defaults_for(lang), "{}: demo categories differ from the starter ones", code);
+        let months = st.list_months();
+        assert!(!months.is_empty(), "{}: no demo entries", code);
+        for month in months {
+            for e in st.load_month(month).entries {
+                assert!(cats.get(e.category_id).is_some(), "{}: entry {:?} has an unknown category", code, e.name);
+            }
+        }
+    }
 }

@@ -16,7 +16,6 @@ mod import;
 mod mcp;
 mod menu;
 mod model;
-mod recurring;
 mod sankey;
 mod settings;
 mod storage;
@@ -24,7 +23,7 @@ mod update;
 mod year;
 
 // Icons used by the app that are not in the default component bundle.
-icon_assets!(ExtraIcons, [CalendarDays, Repeat, Tags, X]);
+icon_assets!(ExtraIcons, [CalendarDays, Tags, X]);
 
 /// The default component icons plus [`ExtraIcons`].
 struct AppAssets;

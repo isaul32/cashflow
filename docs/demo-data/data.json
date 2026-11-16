@@ -14,7 +14,7 @@
       },
       {
         "id": 2,
-        "name": "Freelance",
+        "name": "Other income",
         "kind": "Income",
         "parent": null,
         "color": 9159498
@@ -84,9 +84,6 @@
       }
     ],
     "next_id": 12
-  },
-  "recurring": {
-    "items": []
   },
   "months": {
     "2025-09": {

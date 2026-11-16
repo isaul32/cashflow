@@ -82,7 +82,7 @@ pub struct McpSettings {
     pub allow_changes: bool,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub labels: Labels,
@@ -92,9 +92,22 @@ pub struct Settings {
     pub currency: Option<Currency>,
     /// `None` follows the system appearance.
     pub theme: Option<ThemeChoice>,
-    /// Look for a newer release on GitHub at startup. Off unless the user opts in.
+    /// Look for a newer release on GitHub at startup. On unless the user turns it off.
     pub check_updates: bool,
     pub mcp: McpSettings,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            labels: Labels::default(),
+            language: None,
+            currency: None,
+            theme: None,
+            check_updates: true,
+            mcp: McpSettings::default(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -136,7 +149,10 @@ mod tests {
         // Old files without the new fields mean "automatic".
         let old: Settings = serde_json::from_str(r#"{"labels":{"total":"X"}}"#).unwrap();
         assert_eq!((old.language, old.currency, old.theme), (None, None, None));
-        assert!(!old.check_updates, "update checks must be opt-in");
+        assert!(old.check_updates, "update checks are on unless the user turned them off");
+        let off: Settings = serde_json::from_str(r#"{"check_updates":false}"#).unwrap();
+        assert!(!off.check_updates, "a saved choice is kept");
+        assert_eq!(serde_json::from_str::<Settings>(&serde_json::to_string(&off).unwrap()).unwrap(), off);
         assert!(!old.mcp.enabled && !old.mcp.allow_changes, "the MCP server must be opt-in, and read-only at first");
         let dark: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
         assert_eq!(dark.theme, Some(ThemeChoice::Dark));

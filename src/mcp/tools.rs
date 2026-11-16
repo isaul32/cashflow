@@ -5,18 +5,17 @@ use serde_json::{Value, json};
 
 /// Shown when a tool that changes data is used while changes are not allowed.
 pub const CHANGES_OFF: &str =
-    "Changes are turned off in CashFlow. The user can allow them in Settings, under Advanced, MCP server.";
+    "Changes are turned off in CashFlow. The user can allow them in Settings, under MCP server.";
 
 /// Shown while the user has not turned the MCP server on.
 pub const OFF: &str =
-    "The MCP server is turned off in CashFlow. The user can turn it on in Settings, under Advanced, MCP server.";
+    "The MCP server is turned off in CashFlow. The user can turn it on in Settings, under MCP server.";
 
 /// Tells the model what the app is and how to use the tools.
 pub const INSTRUCTIONS: &str = "CashFlow is a desktop app that tracks monthly income and expenses and draws \
 them as a Sankey chart. Data is organised in months (YYYY-MM). Every entry belongs to a category, and the \
 category's kind (income or expense) decides which it is, so amounts are always positive numbers in the app's \
-currency. Categories can be nested one inside another. Recurring entries are templates: the app adds them to a \
-month when that month is opened while still empty. Start with get_state and list_categories. Tools that change \
+currency. Categories can be nested one inside another. Start with get_state and list_categories. Tools that change \
 data are only available when the user has allowed changes in the app's settings. If the app's window is open it \
 shows changes within a second.";
 
@@ -75,13 +74,6 @@ pub static TOOLS: &[ToolDef] = &[
         schema: || object(json!({"year": {"type": "integer", "description": "Year, e.g. 2026. Defaults to the current year."}}), &[]),
     },
     ToolDef {
-        name: "list_recurring",
-        description: "The recurring entries (monthly templates) with their start and end months.",
-        write: false,
-        destructive: false,
-        schema: no_args,
-    },
-    ToolDef {
         name: "get_settings",
         description: "The user's settings: language, currency, theme and the names of the chart's automatic nodes.",
         write: false,
@@ -97,7 +89,7 @@ pub static TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "export_backup",
-        description: "All data (categories, recurring entries and all months) as one JSON document, the same as the app's backup file.",
+        description: "All data (categories and all months) as one JSON document, the same as the app's backup file.",
         write: false,
         destructive: false,
         schema: no_args,
@@ -119,7 +111,7 @@ pub static TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "add_entry",
-        description: "Adds an entry to a month. The category decides whether it is income or expense. With repeat_monthly it also becomes a recurring entry.",
+        description: "Adds an entry to a month. The category decides whether it is income or expense.",
         write: true,
         destructive: false,
         schema: || {
@@ -129,7 +121,6 @@ pub static TOOLS: &[ToolDef] = &[
                     "amount": amount(),
                     "name": {"type": "string", "description": "Optional note, e.g. \"Rent\"."},
                     "month": month(),
-                    "repeat_monthly": {"type": "boolean", "description": "Also repeat it every month from this month on."},
                 }),
                 &["category", "amount"],
             )
@@ -161,6 +152,29 @@ pub static TOOLS: &[ToolDef] = &[
         schema: || object(json!({"id": {"type": "integer"}, "month": month()}), &["id"]),
     },
     ToolDef {
+        name: "copy_month",
+        description: "Starts an empty month with the entries of another month (by default the month before it), like the Copy button in the app. Fails if the target month already has entries.",
+        write: true,
+        destructive: false,
+        schema: || {
+            object(
+                json!({
+                    "from": {
+                        "type": "string",
+                        "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+                        "description": "Month to copy from, as YYYY-MM. Defaults to the month before the target month.",
+                    },
+                    "to": {
+                        "type": "string",
+                        "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+                        "description": "Empty month to fill, as YYYY-MM. Defaults to the current month.",
+                    },
+                }),
+                &[],
+            )
+        },
+    },
+    ToolDef {
         name: "add_category",
         description: "Creates a category. A category has a kind, and a sub-category must have the same kind as its parent.",
         write: true,
@@ -171,7 +185,7 @@ pub static TOOLS: &[ToolDef] = &[
                     "name": {"type": "string"},
                     "kind": {"type": "string", "enum": ["income", "expense"]},
                     "parent": category_ref("Parent category id or name, to make this a sub-category."),
-                    "color": {"type": "string", "description": "Colour as #RRGGBB. A colour is picked if left out."},
+                    "color": {"type": "string", "description": "Colour as #RRGGBB. Left out, a sub-category gets its parent's colour and another category gets a colour that is picked."},
                 }),
                 &["name", "kind"],
             )
@@ -200,37 +214,6 @@ pub static TOOLS: &[ToolDef] = &[
         write: true,
         destructive: true,
         schema: || object(json!({"category": category_ref("Category id or name.")}), &["category"]),
-    },
-    ToolDef {
-        name: "update_recurring",
-        description: "Changes a recurring entry. Months that already have it keep their entry; later months get the new values.",
-        write: true,
-        destructive: false,
-        schema: || {
-            object(
-                json!({
-                    "id": {"type": "integer", "description": "Recurring entry id, from list_recurring."},
-                    "category": category_ref("New category id or name."),
-                    "name": {"type": "string"},
-                    "amount": amount(),
-                }),
-                &["id"],
-            )
-        },
-    },
-    ToolDef {
-        name: "stop_recurring",
-        description: "Ends a recurring entry after the current month.",
-        write: true,
-        destructive: false,
-        schema: || object(json!({"id": {"type": "integer"}}), &["id"]),
-    },
-    ToolDef {
-        name: "delete_recurring",
-        description: "Deletes a recurring entry. Entries it already added stay in their months.",
-        write: true,
-        destructive: true,
-        schema: || object(json!({"id": {"type": "integer"}}), &["id"]),
     },
     ToolDef {
         name: "set_settings",

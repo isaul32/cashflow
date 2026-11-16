@@ -94,9 +94,7 @@ fn changing_tools_need_the_users_permission() {
         ("add_category", json!({"name": "X", "kind": "expense"})),
         ("update_category", json!({"category": "Food", "name": "Y"})),
         ("delete_category", json!({"category": "Food"})),
-        ("update_recurring", json!({"id": 1, "amount": 1})),
-        ("stop_recurring", json!({"id": 1})),
-        ("delete_recurring", json!({"id": 1})),
+        ("copy_month", json!({})),
         ("set_settings", json!({"theme": "dark"})),
         ("restore_backup", json!({"backup": "{}", "confirm": true})),
         ("import_sankeymatic", json!({"text": "A [1] B"})),
@@ -105,7 +103,7 @@ fn changing_tools_need_the_users_permission() {
     }
     assert_eq!(fx.st.load_month(month()).entries.len(), 2);
     // Every tool the definitions call a write tool is covered by the list above.
-    let covered = 12;
+    let covered = 10;
     assert_eq!(tools::TOOLS.iter().filter(|t| t.write).count(), covered);
 }
 
@@ -211,36 +209,29 @@ fn the_only_category_of_a_kind_with_entries_stays() {
 }
 
 #[test]
-fn recurring_entries_can_be_made_changed_stopped_and_deleted() {
-    let fx = Fixture::new("w-recurring", true, true);
-    let housing = cat(&fx.st, "Housing");
+fn a_month_can_be_copied_into_an_empty_one() {
+    let fx = Fixture::new("w-copy", true, true);
+    seed(&fx); // this month: Lunch and Pay; the month before: Old
+    let target = month().next();
 
-    let added = ok(fx.tool("add_entry", json!({"category": "Housing", "amount": 800, "name": "Rent", "repeat_monthly": true})));
-    assert_eq!(added["repeats_monthly"], true);
-    let item = ok(fx.tool("list_recurring", json!({})))["recurring"][0].clone();
-    assert_eq!((item["name"].as_str(), item["amount"].as_f64(), item["stopped"].as_bool()), (Some("Rent"), Some(800.0), Some(false)));
-    assert_eq!(item["from"], month().to_string());
-    // The same values again do not make a second template.
-    ok(fx.tool("add_entry", json!({"category": "Housing", "amount": 800, "name": "Rent", "repeat_monthly": true})));
-    assert_eq!(fx.st.load_recurring().items.len(), 1);
-    let id = item["id"].as_u64().unwrap();
+    let copied = ok(fx.tool("copy_month", json!({"from": month().to_string(), "to": target.to_string()})));
+    assert_eq!((copied["entries_copied"].as_u64(), copied["to"].as_str()), (Some(2), Some(target.to_string().as_str())));
+    let entries = fx.st.load_month(target).entries;
+    assert_eq!(entries.iter().map(|e| (e.id, e.name.as_str(), e.amount_cents)).collect::<Vec<_>>(), vec![(1, "Lunch", 990), (2, "Pay", 200000)]);
+    assert_eq!(fx.st.load_month(month()).entries.len(), 2, "the source is untouched");
 
-    let updated = ok(fx.tool("update_recurring", json!({"id": id, "amount": 850.5})));
-    assert_eq!(updated["updated"]["amount"], 850.5);
-    assert!(err(fx.tool("update_recurring", json!({"id": id}))).contains("nothing"));
-    assert!(err(fx.tool("update_recurring", json!({"id": 99, "amount": 1}))).contains("no recurring"));
+    // Without `from` it is the month before the target: here the month before next month is this one.
+    let later = target.next();
+    ok(fx.tool("copy_month", json!({"to": later.to_string()})).clone());
+    assert_eq!(fx.st.load_month(later).entries.len(), 2);
 
-    // Adding to the next month first gives that month its recurring entry, with the new amount.
-    ok(fx.tool("add_entry", json!({"category": "Food", "amount": 4, "month": month().next().to_string()})));
-    let next = fx.st.load_month(month().next()).entries;
-    assert!(next.iter().any(|e| e.amount_cents == 85050 && e.category_id == housing), "{next:?}");
-    assert_eq!(next.len(), 2);
-
-    assert_eq!(ok(fx.tool("stop_recurring", json!({"id": id})))["stopped"]["stopped"], true);
-    ok(fx.tool("delete_recurring", json!({"id": id})));
-    assert!(ok(fx.tool("list_recurring", json!({})))["recurring"].as_array().unwrap().is_empty());
-    assert!(err(fx.tool("delete_recurring", json!({"id": id}))).contains("no recurring"));
-    assert!(err(fx.tool("stop_recurring", json!({"id": id}))).contains("no recurring"));
+    // A month that has entries is not filled, and the other mistakes are explained.
+    assert!(err(fx.tool("copy_month", json!({}))).contains("already has entries"), "this month has entries");
+    let far = later.next().next();
+    assert!(err(fx.tool("copy_month", json!({"from": far.to_string(), "to": far.next().to_string()}))).contains("no entries to copy"));
+    assert!(err(fx.tool("copy_month", json!({"from": target.to_string(), "to": target.to_string()}))).contains("same"));
+    assert!(err(fx.tool("copy_month", json!({"to": "nonsense"}))).contains("invalid"));
+    assert_eq!(fx.st.load_month(target).entries.len(), 2);
 }
 
 #[test]
@@ -370,17 +361,34 @@ fn a_call_sees_what_another_process_saved_meanwhile() {
 #[test]
 fn changing_the_language_renames_the_unedited_starter_categories() {
     let fx = Fixture::new("w-starter", true, true);
-    ok(fx.tool("update_category", json!({"category": "Food", "name": "Groceries"})));
+    ok(fx.tool("update_category", json!({"category": "Food", "name": "Meals"})));
 
     ok(fx.tool("set_settings", json!({"language": "fi"})));
     let fi = Categories::defaults_for(Lang::Fi);
     let cats = fx.st.load_categories();
     assert_eq!(cats.get(3).unwrap().name, fi.get(3).unwrap().name, "an unedited one follows the language");
-    assert_eq!(cats.get(4).unwrap().name, "Groceries", "an edited one keeps its name");
+    assert_eq!(cats.get(4).unwrap().name, "Meals", "an edited one keeps its name");
 
     // The tools find categories by their new names.
     ok(fx.tool("add_entry", json!({"category": fi.get(3).unwrap().name, "amount": 5})));
     // Switching to a language where the names are the same does nothing more.
     ok(fx.tool("set_settings", json!({"currency": "usd"})));
     assert_eq!(fx.st.load_categories().get(3).unwrap().name, fi.get(3).unwrap().name);
+}
+
+#[test]
+fn a_sub_category_starts_in_its_parents_colour() {
+    let fx = Fixture::new("w-colour", true, true);
+    let food_color = fx.st.load_categories().get(cat(&fx.st, "Food")).unwrap().color;
+    let hex = |color: u32| format!("#{color:06x}");
+
+    let snacks = ok(fx.tool("add_category", json!({"name": "Snacks", "kind": "expense", "parent": "Food"})));
+    assert_eq!(snacks["added"]["color"], hex(food_color));
+    // A colour that is given wins.
+    let treats = ok(fx.tool("add_category", json!({"name": "Treats", "kind": "expense", "parent": "Food", "color": "#112233"})));
+    assert_eq!(treats["added"]["color"], "#112233");
+    // Without a parent it is the next colour of the palette, not any category's.
+    let next = PALETTE[fx.st.load_categories().items.len() % PALETTE.len()];
+    let top = ok(fx.tool("add_category", json!({"name": "Pets", "kind": "expense"})));
+    assert_eq!(top["added"]["color"], hex(next));
 }
